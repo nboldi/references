@@ -29,10 +29,10 @@ library
                      , Control.Reference.Operators
                      , Control.Reference.Predefined
                      , Control.Reference.TupleInstances
-  build-depends:       base ==4.7.*
+  build-depends:       base <5 && >=4.6
                      , mtl ==2.2.*
                      , transformers ==0.4.*
                      , containers ==0.5.*
                      , either ==4.3.*
                      , lens ==4.2.*
-                     , template-haskell ==2.9.*
+                     , template-haskell <3 && >=2.8
