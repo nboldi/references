@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, ScopedTypeVariables, AllowAmbiguousTypes, MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances, ScopedTypeVariables, AllowAmbiguousTypes, MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 
 -- | Common operators for references
@@ -7,6 +7,7 @@ import Control.Reference.Representation
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
+import Control.Monad.IO.Class
 
 infixl 4 #=
 infixl 4 .=
@@ -85,8 +86,8 @@ a ^*! l = a ^# l
 l #= v = lensSet l v 
 
 -- | Setter for lenses
-(.=) :: Lens' s s a a -> a -> s -> s
-l .= v = summarize (l #= v)
+(.=) :: Lens' s t a b -> b -> s -> t
+l .= v = runIdentity . (l #= v)
 
 -- | Setter for partial lenses
 (?=) :: LensPart' s s a a -> a -> s -> s
@@ -97,7 +98,7 @@ l ?= v = summarize (l #= v)
 l *= v = summarize (l #= v)
 
 -- | Setter for IO. Cannot be summarized.
-(!=) :: RefIO' s s a a -> a -> s -> IO s
+(!=) :: RefIO' s t a b -> b -> s -> IO t
 l != v = l #= v
 
 -- | Setter for Partial IO.
@@ -114,8 +115,8 @@ l *!= v = summarizeM (runListT . (l #= v))
 (#~) :: Reference m s t a b -> (a -> m b) -> s -> m t
 l #~ trf = lensUpdate l trf
 
-(.~) :: Lens' s s a a -> (a -> Identity a) -> s -> s
-l .~ trf = summarize (l #~ trf)
+(.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
+l .~ trf = runIdentity . (l #~ trf)
 
 (?~) :: LensPart' s s a a -> (a -> Maybe a) -> s -> s
 l ?~ trf = summarize (l #~ trf)
@@ -123,7 +124,7 @@ l ?~ trf = summarize (l #~ trf)
 (*~) :: Traversal' s s a a -> (a -> [a]) -> s -> s
 l *~ trf = summarize (l #~ trf)
 
-(!~) :: RefIO' s s a a -> (a -> IO a) -> s -> IO s
+(!~) :: RefIO' s t a b -> (a -> IO b) -> s -> IO t
 l !~ trf = l #~ trf
 
 (?!~) :: PartIO' s s a a -> (a -> MaybeT IO a) -> s -> IO s
@@ -138,7 +139,7 @@ l *!~ trf = summarizeM (runListT . (l #~ trf))
 (#-) :: Monad m => Reference m s t a b -> (a -> b) -> s -> m t
 l #- trf = l #~ return . trf
 
-(.-) :: Lens' s s a a -> (a -> a) -> s -> s
+(.-) :: Lens' s t a b -> (a -> b) -> s -> t
 l .- trf = l .~ return . trf
 
 (?-) :: LensPart' s s a a -> (a -> a) -> s -> s
@@ -147,7 +148,7 @@ l ?- trf = l ?~ return . trf
 (*-) :: Traversal' s s a a -> (a -> a) -> s -> s
 l *- trf = l *~ return . trf
 
-(!-) :: RefIO' s s a a -> (a -> a) -> s -> IO s
+(!-) :: RefIO' s t a b -> (a -> b) -> s -> IO t
 l !- trf = l !~ return . trf
 
 (?!-) :: PartIO' s s a a -> (a -> a) -> s -> IO s
@@ -158,7 +159,7 @@ l *!- trf = l *!~ return . trf
 
 -- * Updaters with only side-effects
 
--- | Performs the given monadic action on referenced data and gives it back
+-- | Performs the given monadic action on referenced data and gives the original data back
 (#|) :: Monad m => Reference m s s a a -> (a -> m x) -> s -> m s
 l #| act = l #~ (\v -> act v >> return v)
 
@@ -168,16 +169,16 @@ l .| act = l #| act
 (?|) :: LensPart' s s a a -> (a -> Maybe c) -> s -> Maybe s
 l ?| act = l #| act
 
-(*|) :: Traversal' s s a a -> (a -> [a]) -> s -> [s]
+(*|) :: Traversal' s s a a -> (a -> [c]) -> s -> [s]
 l *| act = l #| act
 
-(!|) :: RefIO' s s a a -> (a -> IO a) -> s -> IO s
+(!|) :: RefIO' s s a a -> (a -> IO c) -> s -> IO s
 l !| act = l #| act
 
-(?!|) :: PartIO' s s a a -> (a -> MaybeT IO a) -> s -> MaybeT IO s
+(?!|) :: PartIO' s s a a -> (a -> MaybeT IO c) -> s -> MaybeT IO s
 l ?!| act = l #| act
 
-(*!|) :: TravIO' s s a a -> (a -> ListT IO a) -> s -> ListT IO s
+(*!|) :: TravIO' s s a a -> (a -> ListT IO c) -> s -> ListT IO s
 l *!| act = l #| act
 
 
@@ -202,9 +203,3 @@ l1 &+& l2 = Reference (\a -> lensGet l1 a `mplus` lensGet l2 a)
           
 infixl 5 &+&
 
-
--- instance MonadSubsume Maybe Maybe where
---   liftMS = id
-
--- instance MonadSubsume [] [] where
---   liftMS = id

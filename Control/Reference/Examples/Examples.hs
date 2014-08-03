@@ -35,8 +35,8 @@ test7 :: (Maybe Int, Maybe Int)
 test7 = both&just *- (+1) $ (Just 0, Nothing)
 
 -- should not block
-test8 :: ListT IO (MVar Int)
-test8 = emptyRef&mvar ?!- (+1) $ newEmptyMVar
+test8 :: IO (MVar Int)
+test8 = newEmptyMVar >>= emptyRef&mvar ?!- (+1)
 
 test9 = let isoList = iso length (`replicate` ())
          in isoList .- (+1) $ [(),(),()]
@@ -47,7 +47,8 @@ test10 = [1..10] ^* _tail&traverse &+& _tail&_tail&traverse
 test11 :: [Int]
 test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 
-test12 = both !| print $ (0 :: Int, 1 :: Int)
+test12 :: IO (Int,Int)
+test12 = both !| print $ (0, 1)
     
 data Dept = Dept { _manager :: Employee
                  , _staff :: [Employee] 
