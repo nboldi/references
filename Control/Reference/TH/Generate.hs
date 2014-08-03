@@ -1,5 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 -- | This module can be used to generate references for record fields.
 -- If the field surely exists, a 'Lens' will be generated.
@@ -34,13 +35,14 @@
 --
 module Control.Reference.TH.Generate (makeReferences) where
 
-import Language.Haskell.TH
+import Language.Haskell.TH hiding (ListT)
 import qualified Data.Map as M
 import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.Trans
+import Control.Monad.Trans.List
 import Control.Monad.Trans.State
 import Control.Applicative
 import Debug.Trace
@@ -74,7 +76,7 @@ makeLensesForCon _ _ _ = return []
              
 createLensForField :: Name -> [TyVarBndr] -> Name -> Name -> Type -> Q [Dec]
 createLensForField typName typArgs conName fldName fldTyp 
-  = do lTyp <- referenceType (ConT ''Lens') typName typArgs fldTyp  
+  = do lTyp <- referenceType (ConT ''Lens) typName typArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
               , ValD (VarP lensName) (NormalB $ lensBody) []
@@ -98,7 +100,7 @@ makePartialLensesForCon _ _ _ _ = return []
            
 createPartialLensForField :: Name -> [TyVarBndr] -> Name -> [Con] -> Name -> Type -> Q [Dec]
 createPartialLensForField  typName typArgs conName cons fldName fldTyp 
-  = do lTyp <- referenceType (ConT ''LensPart') typName typArgs fldTyp  
+  = do lTyp <- referenceType (ConT ''LensPart) typName typArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
               , ValD (VarP lensName) (NormalB $ lensBody) []
@@ -111,7 +113,9 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
                 matchesWithoutField <- mapM matchWithoutField consWithoutField
                 name <- newName "x"
                 return $ VarE 'polyPartial 
-                           `AppE` LamE [VarP name] (CaseE (VarE name) ( matchesWithField ++ matchesWithoutField ))
+                           `AppE` LamE [VarP name]
+                                       (CaseE (VarE name)
+                                              ( matchesWithField ++ matchesWithoutField ))
                            
          (consWithField, consWithoutField) 
            = partition (hasField fldName) cons
@@ -126,8 +130,8 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
                           `AppE` TupE [ VarE (vars !! bindInd)
                                       , LamE [VarP setVar] 
                                              (VarE 'return `AppE` 
-                                               (funApplication' & element (bindInd+1)
-                                                 .~ VarE setVar $ rebuild)) 
+                                               (funApplication & element (bindInd+1)
+                                                 ?= VarE setVar $ rebuild)) 
                                       ]
                 return $ Match bind (NormalB bindRight) []
                          
@@ -140,9 +144,9 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
 referenceType :: Type -> Name -> [TyVarBndr] -> Type -> Q Type
 referenceType refType name args fldTyp 
   = do w <- newName "w"
-       let argTypes = args ^? traverse&typeVarName'
+       let argTypes = args ^* traverse&typeVarName
        (fldTyp',mapping) <- makePoly argTypes fldTyp
-       let args' = traverse&typeVarName' %~ (\a -> fromMaybe a (mapping ^? element' a)) $ args
+       let args' = traverse&typeVarName *- (\a -> fromMaybe a (mapping ^? element a)) $ args
        return $ ForallT (map PlainTV (w : M.elems mapping ++ argTypes)) [ClassP ''Monad [VarT w]] 
                         (refType `AppT` VarT w 
                                  `AppT` addTypeArgs name args 
@@ -153,30 +157,30 @@ referenceType refType name args fldTyp
 -- | Creates a new field type with changing the type variables that are bound outside
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
-  = runStateT (typVarsBounded %= updateName $ fldTyp) M.empty           
+  = runStateT (summarizeM (runListT . (typVarsBounded #~ updateName)) fldTyp) M.empty           
   where typVarsBounded = typeVariables & filteredTrav (`elem` typArgs)
-        updateName :: Name -> StateT (M.Map Name Name) Q Name
-        updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
-                             modify (M.insert name name')
+        updateName :: Name -> ListT (StateT (M.Map Name Name) Q) Name
+        updateName name = do name' <- lift $ lift (newName (nameBase name ++ "'")) 
+                             lift $ modify (M.insert name name')
                              return name'
-
+                             
 
 -- | Dictates what reference names should be generated from field names
 refName :: Name -> Name
-refName = nameBaseStr %~ \case '_':xs -> xs; xs -> '_':xs
+refName = nameBaseStr .- \case '_':xs -> xs; xs -> '_':xs
 
 -- * Helper functions 
 
 hasField :: Name -> Con -> Bool
-hasField n = not . null . (^? recFields' & traverse & _1 & filteredTrav (==n))
+hasField n = not . null . (^* recFields & traverse & _1 & filteredTrav (==n))
          
 fieldIndex :: Name -> Con -> Maybe Int
-fieldIndex n con = (con ^? recFields') >>= findIndex (\f -> (f ^. _1') == n)
+fieldIndex n con = (con ^? recFields) >>= findIndex (\f -> (f ^. _1) == n)
          
 -- | Creates a type from applying binded type variables to a type function
 addTypeArgs :: Name -> [TyVarBndr] -> Type
 addTypeArgs n = foldl AppT (ConT n) 
-                  . map (VarT . (^. typeVarName'))
+                  . map (VarT . (^. typeVarName))
  
 newtypeToData :: Dec -> Dec
 newtypeToData (NewtypeD ctx name tvars con derives) 
@@ -194,3 +198,5 @@ bindAndRebuild con
               , bindVars
               )
 
+instance Monad m => MonadSubsume [] (ListT m) where
+  liftMS = ListT . return

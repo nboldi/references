@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE LiberalTypeSynonyms #-}
+{-# LANGUAGE LiberalTypeSynonyms, FlexibleContexts #-}
 
 -- | An example module that adds references for Template Haskell
 -- These references are used to create the TH functions that generate
@@ -15,7 +15,7 @@ import Control.Reference.Predefined
 import Control.Applicative
 
 -- | Reference all type variables inside a type
-typeVariables :: (Applicative w, Monad w) => Traversal' w Type Type Name Name
+typeVariables :: Traversal Type Type Name Name
 typeVariables = fromTraversal freeTypeVariables' freeTypeVariables'
   where freeTypeVariables' f (ForallT vars ctx t) = ForallT vars ctx <$> freeTypeVariables' f t
         freeTypeVariables' f (AppT t1 t2) = AppT <$> freeTypeVariables' f t1 <*> freeTypeVariables' f t2
@@ -23,11 +23,11 @@ typeVariables = fromTraversal freeTypeVariables' freeTypeVariables'
         freeTypeVariables' f (VarT n) = VarT <$> f n
         freeTypeVariables' _ t = pure t
  
-typeVariables' :: Simple Traversal Type Name
+typeVariables' :: Traversal Type Type Name Name
 typeVariables' = typeVariables
  
 -- | Reference the name of the type variable inside a type variable binder
-typeVarName :: (Applicative w, Monad w) => Lens' w TyVarBndr TyVarBndr Name Name
+typeVarName :: Lens TyVarBndr TyVarBndr Name Name
 typeVarName = lens (\case PlainTV n -> n; KindedTV n _ -> n) 
                    (\n' -> \case PlainTV _ -> PlainTV n'; KindedTV _ k -> KindedTV n' k)
 
@@ -36,20 +36,20 @@ typeVarName' = typeVarName
 
 -- | Reference the characters of the name.
 -- If changed there is no guarantee that the created name will be unique.
-nameBaseStr :: Monad w => Lens' w Name Name String String
+nameBaseStr :: Lens Name Name String String
 nameBaseStr = iso nameBase mkName
 
 nameBaseStr' :: Simple Lens Name String
 nameBaseStr' = nameBaseStr
 
-recFields :: Monad w => Simple' w LensPart' Con [(Name, Strict, Type)]
+recFields :: LensPart Con Con [(Name, Strict, Type)] [(Name, Strict, Type)]
 recFields = partial (\case (RecC _ flds) -> Just flds; _ -> Nothing) 
                     (\flds' -> \case (RecC name _) -> RecC name flds'; con -> con)
 
 recFields' :: Simple LensPart Con [(Name, Strict, Type)]
 recFields' = recFields
 
-conFields :: Monad w => Simple' w Lens' Con [(Strict, Type)]
+conFields :: Lens Con Con [(Strict, Type)] [(Strict, Type)]
 conFields = lens getFlds setFlds
   where getFlds (NormalC _ flds) = flds	
         getFlds (RecC _ flds) = map (\(_,a,b) -> (a,b)) flds
@@ -76,7 +76,7 @@ conName = lens getName setName
         setName n' (InfixC fld1 _ fld2) = InfixC fld1 n' fld2
         setName n' (ForallC bind ctx c) = ForallC bind ctx (setName n' c)
 
-funApplication :: Monad w => Simple' w Lens' Exp [Exp]
+funApplication :: Lens Exp Exp [Exp] [Exp]
 funApplication = lens (unfoldExpr []) (\ls _ -> foldl1 AppE ls)
   where unfoldExpr ls (AppE l r) = unfoldExpr (r : ls) l
         unfoldExpr ls e = e : ls 
