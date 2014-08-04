@@ -1,7 +1,7 @@
 -- | A frontend module for the Control.Reference package
 
 module Control.Reference 
-( Reference(Reference), Lens, Lens', Traversal, Traversal', LensPart, LensPart'
+( Reference(Reference), Lens, Lens', Traversal, Traversal', LensPart, LensPart', MonadSubsume(..)
 , module Control.Reference.Operators
 , module Control.Reference.Predefined
 , module Control.Reference.TH.Monad

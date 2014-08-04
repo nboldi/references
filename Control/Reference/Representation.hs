@@ -46,10 +46,7 @@ import Control.Monad.Trans.List (ListT(..))
 -- @
 --
 -- == Type arguments
---   ['wm'] Writer monad, controls how the value can be reassembled when the part is changed. 
---          Usually 'Identity'.
---   ['rm'] Reader monad. Controls how part of the value can be accessed. 
---          See 'Lens', 'LensPart' and 'Traversal'
+--   ['m'] The monadic context that controls how the value can be accessed.
 --   ['s'] The original context.
 --   ['t'] The context after replacing the accessed part to something of type 'b'.
 --   ['a'] The accessed part.
@@ -155,6 +152,9 @@ instance Summarize [] where
 class SummarizeFor ms mr where
   summarizeFor :: (a -> ms a) -> a -> mr a
 
+instance SummarizeFor IO IO where
+  summarizeFor f = f
+  
 instance SummarizeFor (MaybeT IO) IO where
   summarizeFor f = summarizeM (runMaybeT . f)
 

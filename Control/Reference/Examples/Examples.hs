@@ -48,7 +48,7 @@ test11 :: [Int]
 test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 
 test12 :: IO (Int,Int)
-test12 = both !| print $ (0, 1)
+test12 = both *!| (liftMS . print) $ (0, 1)
     
 data Dept = Dept { _manager :: Employee
                  , _staff :: [Employee] 
@@ -75,7 +75,8 @@ dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "
 
 test13 = manager&salary .- (*2) $ dept
 
-test14 = traverse *- (`replicate` 'x') $ [1..10]
+test14 :: [[[Char]]]
+test14 = traverse #- (`replicate` 'x') $ [1..10]
 
 test15 = let lens_1 = fromLens Lens._1 Lens._1
           in lens_1 .- show $ (2,'a')

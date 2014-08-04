@@ -34,9 +34,6 @@ infixl 4 ?!-
 infixl 4 *!-
 
 infixl 4 #|
-infixl 4 .|
-infixl 4 ?|
-infixl 4 *|
 infixl 4 !|
 infixl 4 ?!|
 infixl 4 *!|
@@ -163,23 +160,14 @@ l *!- trf = l *!~ return . trf
 (#|) :: Monad m => Reference m s s a a -> (a -> m x) -> s -> m s
 l #| act = l #~ (\v -> act v >> return v)
 
-(.|) :: Lens' s s a a -> (a -> Identity c) -> s -> Identity s
-l .| act = l #| act
-
-(?|) :: LensPart' s s a a -> (a -> Maybe c) -> s -> Maybe s
-l ?| act = l #| act
-
-(*|) :: Traversal' s s a a -> (a -> [c]) -> s -> [s]
-l *| act = l #| act
-
 (!|) :: RefIO' s s a a -> (a -> IO c) -> s -> IO s
 l !| act = l #| act
 
-(?!|) :: PartIO' s s a a -> (a -> MaybeT IO c) -> s -> MaybeT IO s
-l ?!| act = l #| act
+(?!|) :: PartIO' s s a a -> (a -> MaybeT IO c) -> s -> IO s
+l ?!| act = summarizeFor (l #| act)
 
-(*!|) :: TravIO' s s a a -> (a -> ListT IO c) -> s -> ListT IO s
-l *!| act = l #| act
+(*!|) :: TravIO' s s a a -> (a -> ListT IO c) -> s -> IO s
+l *!| act = summarizeFor (l #| act)
 
 
 -- * Binary operators on references

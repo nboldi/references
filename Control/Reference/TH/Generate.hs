@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 -- | This module can be used to generate references for record fields.
 -- If the field surely exists, a 'Lens' will be generated.
@@ -198,5 +198,5 @@ bindAndRebuild con
               , bindVars
               )
 
-instance Monad m => MonadSubsume [] (ListT m) where
+instance MonadSubsume [] (ListT (StateT s Q)) where
   liftMS = ListT . return
