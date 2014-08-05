@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances, ScopedTypeVariables, AllowAmbiguousTypes, MultiParamTypeClasses #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances #-}
+{-# ScopedTypeVariables, MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 
 -- | Common operators for references

@@ -164,7 +164,7 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test10" ([2..10]++[3..10]) test10
                  , TestCase $ assertEqual "test11" ([1,2]++replicate 8 3) test11
                  , TestCase $ assertEqual "test12" ["0","1"] (execWriter (runListT test12))
-                 , TestCase $ assertEqual "test13" (dept { _manager = Employee "Mr. Agamemnon" 100000 },170000)
+                 , TestCase $ assertEqual "test13" (dept { _manager = Employee "Mr. Agamemnon" 100000 }, Sum 170000)
                                                    (runWriter (head <$> runListT test13))
                  , TestCase $ assertEqual "test14" [replicate i 'x' | i <- [1..10]] test14
                  , TestCase $ assertEqual "test15" ("2",'a') test15

@@ -1,4 +1,5 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances, ScopedTypeVariables, AllowAmbiguousTypes, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE LambdaCase #-}
 
 -- | Common operators for references
@@ -32,44 +33,44 @@ infixl 4 $!*-
 -- * Setters
           
 -- | Sets the referenced data in the monad of the reference
-($?=) :: (TypeNeq a b, TypeNeq s t) => LensPart' s t a b -> b -> s -> t
+($?=) :: LensPart' s t a b -> b -> s -> t
 l $?= v = runIdentity . coerceFromF (l #= v)
 
-($*=) :: (TypeNeq a b, TypeNeq s t) => Traversal' s t a b -> b -> s -> t
+($*=) :: Traversal' s t a b -> b -> s -> t
 l $*= v = runIdentity . coerceFromF (l #= v)
 
-($!?=) :: (TypeNeq a b, TypeNeq s t) => PartIO' s t a b -> b -> s -> IO t
+($!?=) :: PartIO' s t a b -> b -> s -> IO t
 l $!?= v = coerceFromF (l #= v)
 
-($!*=) :: (TypeNeq a b, TypeNeq s t) => TravIO' s t a b -> b -> s -> IO t
+($!*=) :: TravIO' s t a b -> b -> s -> IO t
 l $!*= v = coerceFromF (l #= v)
 
 -- * Updaters
 
-($?~) :: (TypeNeq a b, TypeNeq s t) => LensPart' s t a b -> (a -> b) -> s -> t
+($?~) :: LensPart' s t a b -> (a -> b) -> s -> t
 l $?~ v = runIdentity . coerceFromF (l #- v)
 
-($*~) :: (TypeNeq a b, TypeNeq s t) => Traversal' s t a b -> (a -> b) -> s -> t
+($*~) :: Traversal' s t a b -> (a -> b) -> s -> t
 l $*~ v = runIdentity . coerceFromF (l #- v)
 
-($!?~) :: (TypeNeq a b, TypeNeq s t) => PartIO' s t a b -> (a -> IO b) -> s -> IO t
+($!?~) :: PartIO' s t a b -> (a -> IO b) -> s -> IO t
 l $!?~ v = coerceFromF (l #~ liftMS . v)
 
-($!*~) :: (TypeNeq a b, TypeNeq s t) => TravIO' s t a b -> (a -> IO b) -> s -> IO t
+($!*~) :: TravIO' s t a b -> (a -> IO b) -> s -> IO t
 l $!*~ v = coerceFromF (l #~ liftMS . v)
 
 -- * Updaters with pure function inside
 
-($?-) :: (TypeNeq a b, TypeNeq s t) => LensPart' s t a b -> (a -> b) -> s -> t
+($?-) :: LensPart' s t a b -> (a -> b) -> s -> t
 l $?- trf = l $?~ trf
 
-($*-) :: (TypeNeq a b, TypeNeq s t) => Traversal' s t a b -> (a -> b) -> s -> t
+($*-) :: Traversal' s t a b -> (a -> b) -> s -> t
 l $*- trf = l $*~ trf
 
-($!?-) :: (TypeNeq a b, TypeNeq s t) => PartIO' s t a b -> (a -> b) -> s -> IO t
+($!?-) :: PartIO' s t a b -> (a -> b) -> s -> IO t
 l $!?- trf = l $!?~ return . trf
 
-($!*-) :: (TypeNeq a b, TypeNeq s t) => TravIO' s t a b -> (a -> b) -> s -> IO t
+($!*-) :: TravIO' s t a b -> (a -> b) -> s -> IO t
 l $!*- trf = l $!*~ return . trf
 
 
