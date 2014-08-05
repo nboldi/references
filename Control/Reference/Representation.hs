@@ -52,8 +52,10 @@ import Control.Monad.Trans.List (ListT(..))
 --   ['a'] The accessed part.
 --   ['b'] The accessed part can be changed to this.
 
--- TODO: represent isomorphisms with a type parameter
--- TODO: indexed traversals
+-- TODO: represent backreferences with a type parameter (there is an (a -> s) function).
+-- It is called ISO, if m = Identity, prism, if m = Maybe
+-- Is there some reason to have monadic backreferences?
+-- TODO: rename functions
 data Reference m s t a b
   = Reference { lensGet :: s -> m a                   -- ^ Getter for the lens
               , lensSet :: b -> s -> m t              -- ^ Setter for the lens
@@ -80,6 +82,8 @@ type Lens' = Reference Identity
 
 
 -- | The parital lens is a reference that can represent an 1 to 0..1 relationship.
+
+-- TODO: partial laws
 type LensPart s t a b
   = forall m . (Functor m, Applicative m, Monad m, MonadSubsume Maybe m)
     => Reference m s t a b
@@ -87,12 +91,15 @@ type LensPart s t a b
 type LensPart' = Reference Maybe
 
 -- | The Traversal is a reference that can represent an 1 to any relationship.
+
+-- TODO: traversal laws
 type Traversal s t a b
   = forall m . (Functor m, Applicative m, Monad m, MonadSubsume [] m)
     => Reference m s t a b
 
 type Traversal' = Reference []
 
+-- TODO: refIO laws
 type RefIO s t a b
   = forall m . (Functor m, Applicative m, Monad m, MonadSubsume IO m, SummarizeFor m IO)
     => Reference m s t a b
