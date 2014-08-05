@@ -17,6 +17,7 @@
 -- @
 module Control.Reference.TH.MonadInstances () where
 
+import Control.Reference.InternalInterface
 import Control.Reference.TH.Monad
 
 import Control.Monad.Identity

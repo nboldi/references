@@ -7,7 +7,6 @@ import Control.Reference.Representation
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
-import Control.Monad.IO.Class
 
 infixl 4 #=
 infixl 4 .=
@@ -89,7 +88,7 @@ l .= v = runIdentity . (l #= v)
 -- | Setter for partial lenses
 (?=) :: LensPart' s s a a -> a -> s -> s
 l ?= v = summarize (l #= v)
-
+                
 -- | Setter for traversals
 (*=) :: Traversal' s s a a -> a -> s -> s
 l *= v = summarize (l #= v)
@@ -182,12 +181,12 @@ l *!| act = summarizeFor (l #| act)
 infixl 6 &
 
 -- | Adds two references.
-(&+&) :: (MonadPlus m) => Reference m s s a a -> Reference m s s a a
+(&+&) :: (MonadPlus m, MonadSubsume [] m) => Reference m s s a a -> Reference m s s a a
       -> Reference m s s a a
 l1 &+& l2 = Reference (\a -> lensGet l1 a `mplus` lensGet l2 a) 
-                      (\v a -> lensSet l1 v a `mplus` lensSet l2 v a )
-                      (\trf a -> lensUpdate l1 trf a
-                                   `mplus` lensUpdate l2 trf a )
+                      (\v -> lensSet l1 v >=> lensSet l2 v )
+                      (\trf -> lensUpdate l1 trf
+                                 >=> lensUpdate l2 trf )
           
 infixl 5 &+&
 

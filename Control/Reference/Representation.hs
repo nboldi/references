@@ -1,5 +1,5 @@
 {-# LANGUAGE KindSignatures, LambdaCase #-}
-{-# LANGUAGE ScopedTypeVariables, RankNTypes, FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables, RankNTypes, FunctionalDependencies, ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 -- | This module declares the representation and basic classes of references.
@@ -160,3 +160,14 @@ instance SummarizeFor (MaybeT IO) IO where
 
 instance SummarizeFor (ListT IO) IO where
   summarizeFor f = summarizeM (runListT . f)
+
+data True
+data False
+
+type family TypeEqF a b where
+  TypeEqF a a = True
+  TypeEqF a b = False
+
+type TypeNeq a b = TypeEqF a b ~ False
+
+

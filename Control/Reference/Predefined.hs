@@ -35,10 +35,10 @@ emptyRef = Reference (const mzero) (const return) (const return)
 -- * Reference generators
 
 -- | Generates a traversal on any traversable
-traverse :: (Trav.Traversable t, Monad m, Monoid (m a), MonadSubsume [] m)
+traverse :: (Trav.Traversable t, Monad m, MonadSubsume [] m)
             => Reference m (t a) (t b) a b
-traverse = Reference (execWriter . Trav.mapM (tell . liftMS . (:[]))) 
-                     (\v -> Trav.mapM (const $ return v)) 
+traverse = Reference (liftMS . execWriter . Trav.mapM (tell . (:[])))
+                     (Trav.mapM . const . return) 
                      Trav.mapM
 
 -- | Generates a lens from a getter and a setter
