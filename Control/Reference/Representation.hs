@@ -59,7 +59,16 @@ data Reference m s t a b
               , lensSet :: b -> s -> m t              -- ^ Setter for the lens
               , lensUpdate :: (a -> m b) -> s -> m t  -- ^ Updater for the lens. 
                                                       -- Handles monadic update functions.
+              , readClose :: s -> m ()
+              , writeClose :: s -> m ()
+              , updateClose :: s -> m ()
               }
+
+-- | Creates a reference without close operations
+reference :: Monad m => (s -> m a) -> (b -> s -> m t) -> ((a -> m b) -> s -> m t) -> Reference m s t a b
+reference getter setter updater
+  = Reference getter setter updater noClose noClose noClose
+    where noClose = const (return ())
               
 -- | A monomorph 'Lens', 'Traversal', 'LensPart', etc... 
 -- Setting or updating does not change the type of the base.
@@ -70,7 +79,7 @@ type Simple t s a = t s s a a
 -- Needs @LiberalTypeSynonyms@ language extension
 type Simple' (w :: * -> *) t s a = t w s s a a
 type SimpleRef m s a = Reference m s s a a
-              
+
 -- | The Lens is a reference that can represent an 1 to 1 relationship.
 type Lens s t a b
   = forall m . (Functor m, Applicative m, Monad m)

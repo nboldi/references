@@ -1,5 +1,5 @@
 {-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances #-}
-{-# ScopedTypeVariables, MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase #-}
 
 -- | Common operators for references
@@ -8,6 +8,7 @@ import Control.Reference.Representation
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
+import Control.Applicative
 
 infixl 4 #=
 infixl 4 .=
@@ -49,8 +50,9 @@ infixl 4 ^*!
 -- * Getters
 
 -- | Gets the referenced data in the monad of the lens
-(^#) :: s -> Reference m s t a b -> m a
-a ^# l = lensGet l a
+(^#) :: (Monad m, Applicative m, Functor m)
+        => s -> Reference m s t a b -> m a
+a ^# l = lensGet l a <* readClose l a
 
 -- | Pure version of '^#'
 (^.) :: s -> Lens' s t a b -> a
@@ -79,8 +81,9 @@ a ^*! l = a ^# l
 -- * Setters
           
 -- | Sets the referenced data in the monad of the reference
-(#=) :: Monad m => Reference m s t a b -> b -> s -> m t
-l #= v = lensSet l v 
+(#=) :: (Monad m, Applicative m, Functor m)
+        => Reference m s t a b -> b -> s -> m t
+l #= v = \s -> lensSet l v s <* writeClose l s
 
 -- | Setter for lenses
 (.=) :: Lens' s t a b -> b -> s -> t
@@ -109,8 +112,9 @@ l *!= v = summarizeM (runListT . (l #= v))
 -- * Updaters
 
 -- | Applies the given monadic function on the referenced data in the monad of the lens
-(#~) :: Reference m s t a b -> (a -> m b) -> s -> m t
-l #~ trf = lensUpdate l trf
+(#~) :: (Monad m, Applicative m, Functor m)
+        => Reference m s t a b -> (a -> m b) -> s -> m t
+l #~ trf = \s -> lensUpdate l trf s <* updateClose l s
 
 (.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
 l .~ trf = runIdentity . (l #~ trf)
@@ -133,7 +137,8 @@ l *!~ trf = summarizeM (runListT . (l #~ trf))
 -- * Updaters with pure function inside
 
 -- | Applies the given monadic function on the referenced data in the monad of the lens
-(#-) :: Monad m => Reference m s t a b -> (a -> b) -> s -> m t
+(#-) :: (Monad m, Applicative m, Functor m)
+        => Reference m s t a b -> (a -> b) -> s -> m t
 l #- trf = l #~ return . trf
 
 (.-) :: Lens' s t a b -> (a -> b) -> s -> t
@@ -157,7 +162,8 @@ l *!- trf = l *!~ return . trf
 -- * Updaters with only side-effects
 
 -- | Performs the given monadic action on referenced data and gives the original data back
-(#|) :: Monad m => Reference m s s a a -> (a -> m x) -> s -> m s
+(#|) :: (Monad m, Applicative m, Functor m)
+        => Reference m s s a a -> (a -> m x) -> s -> m s
 l #| act = l #~ (\v -> act v >> return v)
 
 (!|) :: RefIO' s s a a -> (a -> IO c) -> s -> IO s
@@ -178,6 +184,9 @@ l *!| act = summarizeFor (l #| act)
 (&) l1 l2 = Reference (lensGet l1 >=> lensGet l2) 
                       (lensUpdate l1 . lensSet l2) 
                       (\trf s -> lensUpdate l1 (lensUpdate l2 trf) s)
+                      (\s -> readClose l1 s >> lensGet l1 s >>= readClose l2)
+                      (\s -> writeClose l1 s >> lensGet l1 s >>= writeClose l2)
+                      (\s -> updateClose l1 s >> lensGet l1 s >>= updateClose l2)
   
 infixl 6 &
 
@@ -188,6 +197,9 @@ l1 &+& l2 = Reference (\a -> lensGet l1 a `mplus` lensGet l2 a)
                       (\v -> lensSet l1 v >=> lensSet l2 v )
                       (\trf -> lensUpdate l1 trf
                                  >=> lensUpdate l2 trf )
+                      (\s -> readClose l1 s >> readClose l2 s)
+                      (\s -> writeClose l1 s >> writeClose l2 s)
+                      (\s -> updateClose l1 s >> updateClose l2 s)
           
 infixl 5 &+&
 

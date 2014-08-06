@@ -51,7 +51,7 @@ genInstance (n,m)
           = do names <- replicateM m (newName "a")
                name <- newName "b3"
                trf <- newName "trf"
-               return $ ConE 'Reference 
+               return $ VarE 'reference 
                           `AppE` LamE [TupP (map VarP names)] 
                                       (VarE 'return `AppE` VarE (names !! n))
                           `AppE` LamE [VarP name, TupP (map VarP names)] 
