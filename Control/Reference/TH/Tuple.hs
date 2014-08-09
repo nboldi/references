@@ -22,21 +22,14 @@ genClass i
        t <- newName "t"
        a <- newName "a"
        b <- newName "b1"
-       w <- newName "w"
        let tvars = map PlainTV [s,t,a,b]
        return $ ClassD [] (mkName ("Lens_" ++ show (i+1))) tvars
                        [ FunDep [s] [a], FunDep [t] [b]
                        , FunDep [a,t] [s], FunDep [b,s] [t]] 
                        [ SigD normalLens 
-                              ( ForallT [PlainTV w] 
-                                        [ClassP ''Monad [VarT w]] 
-                                        (foldl AppT (ConT ''Lens') (map VarT [w,s,t,a,b])) )
-                       , SigD restrictedLens 
-                              (foldl AppT (ConT ''Lens) (map VarT [s,t,a,b]))
-                       , ValD (VarP restrictedLens) (NormalB $ VarE normalLens) []                
+                              ( ForallT [] [] (foldl AppT (ConT ''Lens) (map VarT [s,t,a,b])) )               
                        ]    
   where normalLens = mkName ("_" ++ show (i+1))
-        restrictedLens = mkName ("_" ++ show (i+1) ++ "'")
         
 
 genInstance :: (Int,Int) -> Q Dec
@@ -58,7 +51,7 @@ genInstance (n,m)
           = do names <- replicateM m (newName "a")
                name <- newName "b3"
                trf <- newName "trf"
-               return $ ConE 'Reference 
+               return $ VarE 'reference 
                           `AppE` LamE [TupP (map VarP names)] 
                                       (VarE 'return `AppE` VarE (names !! n))
                           `AppE` LamE [VarP name, TupP (map VarP names)] 
