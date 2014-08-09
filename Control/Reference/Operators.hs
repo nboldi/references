@@ -1,11 +1,12 @@
 {-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances #-}
-{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, AllowAmbiguousTypes #-}
+{-# LANGUAGE LambdaCase, TypeOperators #-}
 
 -- | Common operators for references
 module Control.Reference.Operators where
 import Control.Reference.Representation
 import Control.Monad.Identity
+import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
 import Control.Applicative
@@ -52,7 +53,7 @@ infixl 4 ^*!
 -- | Gets the referenced data in the monad of the lens
 (^#) :: (Monad m, Applicative m, Functor m)
         => s -> Reference m s t a b -> m a
-a ^# l = lensGet l a <* readClose l a
+a ^# l = refGet l a <* getClose l a
 
 -- | Pure version of '^#'
 (^.) :: s -> Lens' s t a b -> a
@@ -83,7 +84,7 @@ a ^*! l = a ^# l
 -- | Sets the referenced data in the monad of the reference
 (#=) :: (Monad m, Applicative m, Functor m)
         => Reference m s t a b -> b -> s -> m t
-l #= v = \s -> lensSet l v s <* writeClose l s
+l #= v = \s -> refSet l v s <* setClose l s
 
 -- | Setter for lenses
 (.=) :: Lens' s t a b -> b -> s -> t
@@ -103,18 +104,18 @@ l != v = l #= v
 
 -- | Setter for Partial IO.
 (?!=) :: PartIO' s s a a -> a -> s -> IO s
-l ?!= v = summarizeM (runMaybeT . (l #= v))
+l ?!= v = summarizeInto (l #= v)
 
 -- | Setter for Traversal IO.
 (*!=) :: TravIO' s s a a -> a -> s -> IO s
-l *!= v = summarizeM (runListT . (l #= v))
+l *!= v = summarizeInto (l #= v)
 
 -- * Updaters
 
 -- | Applies the given monadic function on the referenced data in the monad of the lens
 (#~) :: (Monad m, Applicative m, Functor m)
         => Reference m s t a b -> (a -> m b) -> s -> m t
-l #~ trf = \s -> lensUpdate l trf s <* updateClose l s
+l #~ trf = \s -> refUpdate l trf s <* updateClose l s
 
 (.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
 l .~ trf = runIdentity . (l #~ trf)
@@ -129,10 +130,10 @@ l *~ trf = summarize (l #~ trf)
 l !~ trf = l #~ trf
 
 (?!~) :: PartIO' s s a a -> (a -> MaybeT IO a) -> s -> IO s
-l ?!~ trf = summarizeM (runMaybeT . (l #~ trf))
+l ?!~ trf = summarizeInto (l #~ trf)
 
 (*!~) :: TravIO' s s a a -> (a -> ListT IO a) -> s -> IO s
-l *!~ trf = summarizeM (runListT . (l #~ trf))
+l *!~ trf = summarizeInto (l #~ trf)
 
 -- * Updaters with pure function inside
 
@@ -170,36 +171,37 @@ l #| act = l #~ (\v -> act v >> return v)
 l !| act = l #| act
 
 (?!|) :: PartIO' s s a a -> (a -> MaybeT IO c) -> s -> IO s
-l ?!| act = summarizeFor (l #| act)
+l ?!| act = summarizeInto (l #| act)
 
 (*!|) :: TravIO' s s a a -> (a -> ListT IO c) -> s -> IO s
-l *!| act = summarizeFor (l #| act)
+l *!| act = summarizeInto (l #| act)
 
 
 -- * Binary operators on references
 
 -- | Composes two references.
-(&) :: (Monad m) => Reference m s t c d -> Reference m c d a b
+(&) :: (CloseMonad m) => Reference m s t c d -> Reference m c d a b
     -> Reference m s t a b
-(&) l1 l2 = Reference (lensGet l1 >=> lensGet l2) 
-                      (lensUpdate l1 . lensSet l2) 
-                      (\trf s -> lensUpdate l1 (lensUpdate l2 trf) s)
-                      (\s -> readClose l1 s >> lensGet l1 s >>= readClose l2)
-                      (\s -> writeClose l1 s >> lensGet l1 s >>= writeClose l2)
-                      (\s -> updateClose l1 s >> lensGet l1 s >>= updateClose l2)
+(&) l1 l2 = Reference (refGet l1 >=> refGet l2) 
+                      (refUpdate l1 . refSet l2) 
+                      (refUpdate l1 . refUpdate l2)
+                      (\s -> normalizeClose $ getClose l1 s >> refGet l1 s >>= getClose l2)
+                      (\s -> normalizeClose $ setClose l1 s >> refGet l1 s >>= setClose l2)
+                      (\s -> normalizeClose $ updateClose l1 s >> refGet l1 s >>= updateClose l2)
   
 infixl 6 &
 
 -- | Adds two references.
-(&+&) :: (MonadPlus m, MonadSubsume [] m) => Reference m s s a a -> Reference m s s a a
-      -> Reference m s s a a
-l1 &+& l2 = Reference (\a -> lensGet l1 a `mplus` lensGet l2 a) 
-                      (\v -> lensSet l1 v >=> lensSet l2 v )
-                      (\trf -> lensUpdate l1 trf
-                                 >=> lensUpdate l2 trf )
-                      (\s -> readClose l1 s >> readClose l2 s)
-                      (\s -> writeClose l1 s >> writeClose l2 s)
-                      (\s -> updateClose l1 s >> updateClose l2 s)
+(&+&) :: (CloseMonad m, MonadPlus m, [] !<! m)
+         => Reference m s s a a -> Reference m s s a a
+         -> Reference m s s a a
+l1 &+& l2 = Reference (\a -> refGet l1 a `mplus` refGet l2 a) 
+                      (\v -> refSet l1 v >=> refSet l2 v )
+                      (\trf -> refUpdate l1 trf
+                                 >=> refUpdate l2 trf )
+                      (\s -> normalizeClose $ getClose l1 s >> getClose l2 s)
+                      (\s -> normalizeClose $ setClose l1 s >> setClose l2 s)
+                      (\s -> normalizeClose $ updateClose l1 s >> updateClose l2 s)
           
 infixl 5 &+&
 

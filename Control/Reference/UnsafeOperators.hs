@@ -93,8 +93,3 @@ instance CoerceFrom (MaybeT IO) IO where
 instance CoerceFrom (ListT IO) IO where
   coerceFrom a b = liftM (runIdentity . coerceFrom a) (runListT b)
 
-instance MonadSubsume IO (MaybeT IO) where
-  liftMS = MaybeT . liftM Just
-
-instance MonadSubsume IO (ListT IO) where
-  liftMS = ListT . liftM (:[])

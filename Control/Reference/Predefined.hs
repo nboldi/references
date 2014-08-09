@@ -1,47 +1,55 @@
-{-# LANGUAGE LambdaCase, TupleSections #-}
+{-# LANGUAGE LambdaCase, TupleSections, TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes, TypeFamilies, FunctionalDependencies, LiberalTypeSynonyms #-}
 
--- | Predefined references.
--- 
--- _Naming convention_: If there is a reference @foo@ and a reference @foo'@ then 
--- @foo'@ is the restricted version of @foo@. If @foo@ is generic in it's writer monad
--- @foo'@ has the simplest writer monad that suffices.
+-- | Predefined references for commonly used data structures.
+--
+-- When defining lenses one should use the more general types. For instance 'Lens' instead of the more strict 'Lens''. This way references with different @m1@ and @m2@ monads can be combined if there is a monad @m'@ for @m1 !<! m'@ and @m2 !<! m'@.
+
+-- TODO: create references that can add or remove elements with prisms
 module Control.Reference.Predefined where
 
 import Control.Reference.Representation
 
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Data.IORef
+import Data.Maybe
 import Data.Map as Map
 import Data.Either.Combinators
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.State
-import Control.Monad.Trans.Maybe
 import qualified Control.Lens as Lens
 import qualified Data.Traversable as Trav
 
 -- * Trivial references
 
 -- | An identical lens. Accesses the context.
-simple :: Lens a b a b
-simple = reference return (const . return) id   
+--
+-- > self & a = a & self = a
+self :: Lens a b a b
+self = reference return (const . return) id   
 
 -- | An empty reference that do not traverse anything
-emptyRef :: (MonadPlus m) => Reference m s s a a
+--
+-- > emptyRef &+& a = a &+& emptyRef = a
+emptyRef :: Simple RefPlus s a
 emptyRef = reference (const mzero) (const return) (const return)
 
 
 -- * Reference generators
 
--- | Generates a traversal on any traversable
-traverse :: (Trav.Traversable t, Monad m, MonadSubsume [] m)
+-- | Generates a traversal for any 'Trav.Traversable' 'Functor'
+traverse :: (Trav.Traversable t, Monad m, [] !<! m)
             => Reference m (t a) (t b) a b
 traverse = reference (liftMS . execWriter . Trav.mapM (tell . (:[])))
                      (Trav.mapM . const . return) 
                      Trav.mapM
+             
+-- | Generate a lens from a pair of inverse functions
+iso :: (a -> b) -> (b -> a) -> Lens a a b b
+iso f g = reference (return . f) (\b _ -> return . g $ b) (\trf a -> trf (f a) >>= return . g  ) 
 
 -- | Generates a lens from a getter and a setter
 lens :: (s -> a) -> (b -> s -> t) -> Lens s t a b
@@ -49,106 +57,75 @@ lens get set = reference (return . get)
                          (\b -> return . set b ) 
                          (\f a -> f (get a) >>= \b -> return $ set b a)
 
--- | Creates a monomorphic partial lens
-partial :: (s -> Maybe a) -> (a -> s -> s) -> LensPart s s a a
-partial get set = reference (liftMS . get)
-                            (\b -> return . set b ) 
-                            (\f a -> case get a of Just x -> f x >>= \b -> return $ set b a
-                                                   Nothing -> return a)
+-- | Creates a monomorphic partial lense
+partial :: (s -> Either t (a, b -> t)) -> LensPart s t a b
+partial access = reference (\s -> case access s of Left _ -> liftMS Nothing
+                                                   Right (a,_) -> return a)
+                           (\b s -> case access s of Left t -> return t
+                                                     Right (_,set) -> return (set b))
+                           (\f s -> case access s of Left t -> return t
+                                                     Right (a,set) -> f a >>= return . set)
 
-
--- | Creates a polymorphic partial lense
-polyPartial :: forall s t a b .  (s -> Maybe (a, b -> t)) -> LensPart s t a b
-polyPartial access = reference (liftMS . fmap fst . access)
-                               (\b s -> fmap (($ b) . snd) (liftMS (access s)))
-                               (\f s -> (liftMS (access s)) >>= (\(v,set) -> f v >>= return . set))
-
--- | Generate a reference from a simple lens from 'Control.Lens'
+-- | Clones a lens from "Control.Lens"
 fromLens :: Lens.Lens s s a a -> Lens.Lens s t a b -> Lens s t a b
 fromLens lm lp = reference (\s -> return (s Lens.^. lm)) 
                            (\b -> return . (lp Lens..~ b))
                            lp              
                            
--- | Generate a reference from a simple lens from 'Control.Lens'
-fromTraversal :: Lens.Traversal s s a a -> Lens.Traversal s t a b -> Traversal s t a b
-fromTraversal lm lp = reference (\s -> liftMS (s Lens.^.. lm)) 
-                                (\b -> return . (lp Lens..~ b))
-                                lp
+-- | Clones a traversal from "Control.Lens"
+fromTraversal :: Lens.Traversal s t a b -> Traversal s t a b
+fromTraversal l = reference (liftMS . execWriter . Lens.mapMOf l (\a -> tell [a] >> return undefined))
+                            (\b -> return . Lens.set l b) l
                                                            
 -- | Filters the traversed elements with a given predicate. 
 -- Has specific versions for traversals and partial lenses.
-filtered :: (MonadPlus m) => (a -> Bool) -> Reference m a a a a
+filtered :: (a -> Bool) -> Simple RefPlus a a
 filtered p = reference (\s -> if p s then return s else mzero)
                        (\a s -> if p s then return a else return s)
                        (\f s -> if p s then f s else return s)
-                       
--- | Filters a traversal                       
-filteredTrav :: (MonadPlus m) => (a -> Bool) -> Reference m a a a a
-filteredTrav = filtered  
-                              
--- | Filters a partial lens                       
-filteredPartial :: (MonadPlus m) => (a -> Bool) -> Reference m a a a a
-filteredPartial = filtered
-
-
--- | Generate a lens from a pair of inverse functions
-iso :: (a -> b) -> (b -> a) -> Lens a a b b
-iso f g = reference (return . f) (\b _ -> return . g $ b) (\trf a -> trf (f a) >>= return . g  ) 
 
 -- * References for simple data structures
 
--- TODO : change to partial lens generators
-
 -- | A partial lens to access the value that may not exist
 just :: LensPart (Maybe a) (Maybe b) a b
-just = reference liftMS (\v -> return . fmap (const v)) 
-                        (\trf -> \case Just x -> liftM Just (trf x) 
-                                       Nothing -> return Nothing)
-             
+just = partial (\case Just x -> Right (x, Just)
+                      Nothing -> Left Nothing)
+
 -- | A partial lens to access the right option of an 'Either'
 right :: LensPart (Either a b) (Either a c) b c
-right = reference (liftMS . rightToMaybe)
-                  (\v -> return . mapRight (const v)) 
-                  (\trf a -> case a of Right x -> liftM Right (trf x)
-                                       Left y -> return (Left y) )    
-                  
+right = partial (\case Right x -> Right (x, Right)
+                       Left a -> Left (Left a))
+
 -- | A partial lens to access the left option of an 'Either'                  
 left :: LensPart (Either a c) (Either b c) a b
-left = reference (liftMS . leftToMaybe)
-                 (\v -> return . mapLeft (const v)) 
-                 (\trf a -> case a of Left x -> liftM Left (trf x)
-                                      Right y -> return (Right y) )
-
+left = partial (\case Left a -> Right (a, Left)
+                      Right r -> Left (Right r))
 
 -- | Access the value that is in the left or right state of an 'Either'
 anyway :: Lens (Either a a) (Either b b) a b
-anyway = reference (\case Left a -> return a; Right a -> return a)
-                   (\b -> \case Left _ -> return (Left b); Right _ -> return (Right b))
-                   (\f -> \case Left a -> f a >>= return . Left; Right a -> f a >>= return . Right)
+anyway = reference (either return return)
+                   (\b -> return . mapBoth (const b) (const b))
+                   (\f -> either (f >=> return . Left) (f >=> return . Right))
 
 -- | References both elements of a tuple
 both :: Traversal (a,a) (b,b) a b
 both = reference (\(x,y) -> liftMS [x,y]) 
                  (\v -> return . const (v,v)) 
-                 (\f (x,y) -> liftM2 (,) (f x) (f y))
+                 (\f (x,y) -> (,) <$> f x <*> f y)
 
 -- | References the head of a list
-_head :: LensPart [a] [a] a a
-_head = reference (\case x:_ -> return x; _ -> liftMS Nothing) 
-                 (\a -> return . \case _:xs -> a:xs; [] -> []) 
-                 (\f -> \case x:xs -> liftM (:xs) (f x); [] -> return [])     
+_head :: Simple LensPart [a] a
+_head = partial (\case [] -> Left []; x:xs -> Right (x,(:xs)))
     
 -- | References the tail of a list
-_tail :: LensPart [a] [a] [a] [a]
-_tail = reference (\case _:xs -> return xs; _ -> liftMS Nothing) 
-                  (\ys -> return . \case x:_ -> x:ys; [] -> []) 
-                  (\f -> \case x:xs -> liftM (x:) (f xs); [] -> return [])
+_tail :: Simple LensPart [a] [a]
+_tail = partial (\case [] -> Left []; x:xs -> Right (xs,(x:)))
                  
 -- | Lenses for given values in a data structure that is indexed by keys.
 class Association e where
   type AssocIndex e :: *
   type AssocElem e :: *
-  element :: AssocIndex e -> LensPart e e (AssocElem e) (AssocElem e)
+  element :: AssocIndex e -> Simple LensPart e (AssocElem e)
           
 instance Association [a] where          
   type AssocIndex [a] = Int
@@ -181,21 +158,21 @@ instance Ord k => Association (Map k v) where
 -- always using consistent data.
 
 -- TODO: could mvar be polymorphic? (withMVar is OK for update, but coercion is needed for set)
-mvar :: RefIO (MVar a) (MVar a) a a
+mvar :: Simple RefIO (MVar a) a
 mvar = reference (liftMS . readMVar)
                  (\newVal mv -> liftMS (putMVar mv newVal) >> return mv)     
-                 (\trf mv -> liftMS (modifyMVar_ mv (summarizeFor trf)) >> return mv)     
+                 (\trf mv -> liftMS (modifyMVar_ mv (summarizeInto trf)) >> return mv)     
           
 -- | Access the value of an IORef.
 
 -- TODO: could ioref be polymorphic?
-ioref :: RefIO (IORef v) (IORef v) v v
+ioref :: Simple RefIO (IORef v) v
 ioref = reference (liftMS . readIORef) (\v ior -> liftMS (atomicWriteIORef ior v) >> return ior) 
                   (\trf ior -> liftMS (readIORef ior)
-                                 >>= \v -> liftMS (summarizeFor trf v >>= writeIORef ior >> return ior)
+                                 >>= \v -> liftMS (summarizeInto trf v >>= writeIORef ior >> return ior)
                   ) 
   
 -- | Access the state inside a state monad (from any context).
-state :: (MonadState s m) => Reference m a a s s
+state :: (MonadState s m) => Simple (Reference m) a s
 state = reference (const get) (\a s -> put a >> return s) 
                   (\trf s -> (get >>= trf >> return s))   

@@ -39,7 +39,7 @@ makeMonadRepr :: (ToQType t1, ToQType t2, ToQExp e)
               => t1 -> t2 -> e -> Q [Dec]
 makeMonadRepr m1' m2' e'
   = do t1 <- toQType m1'; t2 <- toQType m2'; e <- toQExp e' 
-       ClassI _ subsumeInstances <- reify ''MonadSubsume
+       ClassI _ subsumeInstances <- reify ''(!<!)
        let subsumes = map (\(InstanceD _ (AppT (AppT _ below) above) _) -> (below, above))
                           subsumeInstances
        evalStateT (makeMonadRepr' t1 t2 e) (IGS subsumes)
@@ -82,7 +82,7 @@ generateSubsume m1 m2 e
          do modify $ \st -> st { subsumeInsts = (m1,m2) : subsumeInsts st }
             x <- lift (newName "x")
             return $ Just $ 
-              InstanceD [] (ConT ''MonadSubsume `AppT` m1 `AppT` m2)
+              InstanceD [] (ConT ''(!<!) `AppT` m1 `AppT` m2)
                         [ FunD 'liftMS [Clause [] (NormalB (e x)) []] ]
        else return Nothing
 

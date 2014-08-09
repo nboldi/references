@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, TypeOperators #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
 
 -- | A collection of random example references
@@ -61,7 +61,7 @@ test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 test12 :: ListT (Writer [String]) (Int,Int)
 test12 = both #| (lift . tell . (:[]) . show) $ (0, 1)
 
-instance Monoid s => MonadSubsume [] (ListT (Writer s)) where
+instance Monoid s => [] !<! (ListT (Writer s)) where
   liftMS = ListT . return 
          
 data Dept = Dept { _manager :: Employee

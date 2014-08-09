@@ -1,4 +1,4 @@
-{-# LANGUAGE KindSignatures, LambdaCase #-}
+{-# LANGUAGE KindSignatures, LambdaCase, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes, FunctionalDependencies, ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
@@ -6,11 +6,14 @@
 module Control.Reference.Representation where
 
 import Control.Monad.Identity (Identity(..))
-import Control.Applicative(Applicative)
+import Control.Applicative
 import Data.Maybe (fromMaybe)
-import Control.Monad (liftM)
+import Data.Monoid
+import Control.Monad
 import Control.Monad.Trans.Maybe (MaybeT(..))
-import Control.Monad.Trans.List (ListT(..))
+import Control.Monad.Trans.List
+import Control.Monad.State
+import Control.Monad.Writer
 
 -- | A reference is an accessor to a part or different view of some data. 
 -- The reference, unlike the lens has a separate getter, setter and updater.
@@ -52,21 +55,24 @@ import Control.Monad.Trans.List (ListT(..))
 --   ['a'] The accessed part.
 --   ['b'] The accessed part can be changed to this.
 
+-- In setter and updater monads non-return values can cause unexpected behaviour. For example
+-- giving back @Nothing@ inside an updater for a 'LensPart'' causes the computation to stop. 
+
 -- TODO: represent backreferences with a type parameter (there is an (a -> s) function).
 -- It is called ISO, if m = Identity, prism, if m = Maybe
 -- Is there some reason to have monadic backreferences?
--- TODO: rename functions
 data Reference m s t a b
-  = Reference { lensGet :: s -> m a                   -- ^ Getter for the lens
-              , lensSet :: b -> s -> m t              -- ^ Setter for the lens
-              , lensUpdate :: (a -> m b) -> s -> m t  -- ^ Updater for the lens. 
+  = Reference { refGet :: s -> m a                    -- ^ Getter for the lens
+              , refSet :: b -> s -> m t               -- ^ Setter for the lens
+              , refUpdate :: (a -> m b) -> s -> m t   -- ^ Updater for the lens. 
                                                       -- Handles monadic update functions.
-              , readClose :: s -> m ()
-              , writeClose :: s -> m ()
-              , updateClose :: s -> m ()
+              , getClose :: s -> m ()                 -- ^ Closes the reference after a 'refGet' 
+              , setClose :: s -> m ()                 -- ^ Closes the reference after a 'refSet'
+              , updateClose :: s -> m ()              -- ^ Closes the reference after an update.
+                                                      -- Should perform both 'getClose' and 'setClose'
               }
 
--- | Creates a reference without close operations
+-- | Creates a reference with empty close operations.
 reference :: Monad m => (s -> m a) -> (b -> s -> m t) -> ((a -> m b) -> s -> m t) -> Reference m s t a b
 reference getter setter updater
   = Reference getter setter updater noClose noClose noClose
@@ -76,12 +82,6 @@ reference getter setter updater
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
 
--- | A monomorph 'Lens'', 'Traversal'', 'LensPart'', etc... 
--- Setting or updating does not change the type of the base.
--- Needs @LiberalTypeSynonyms@ language extension
-type Simple' (w :: * -> *) t s a = t w s s a a
-type SimpleRef m s a = Reference m s s a a
-
 -- | The Lens is a reference that can represent an 1 to 1 relationship.
 type Lens s t a b
   = forall m . (Functor m, Applicative m, Monad m)
@@ -89,12 +89,16 @@ type Lens s t a b
 
 type Lens' = Reference Identity
 
+-- | A reference that has a monad to support the empty reference and adding reference parts.
+type RefPlus s t a b
+  = forall m . (Functor m, Applicative m, MonadPlus m)
+    => Reference m s t a b
 
 -- | The parital lens is a reference that can represent an 1 to 0..1 relationship.
 
 -- TODO: partial laws
 type LensPart s t a b
-  = forall m . (Functor m, Applicative m, Monad m, MonadSubsume Maybe m)
+  = forall m . (Functor m, Applicative m, Monad m, MonadPlus m, Maybe !<! m)
     => Reference m s t a b
 
 type LensPart' = Reference Maybe
@@ -103,78 +107,109 @@ type LensPart' = Reference Maybe
 
 -- TODO: traversal laws
 type Traversal s t a b
-  = forall m . (Functor m, Applicative m, Monad m, MonadSubsume [] m)
+  = forall m . (Functor m, Applicative m, Monad m, MonadPlus m, [] !<! m)
     => Reference m s t a b
 
 type Traversal' = Reference []
 
 -- TODO: refIO laws
 type RefIO s t a b
-  = forall m . (Functor m, Applicative m, Monad m, MonadSubsume IO m, SummarizeFor m IO)
+  = forall m . (Functor m, Applicative m, Monad m, IO !<! m, SummarizeInto m IO)
     => Reference m s t a b
 
+-- | Strictly IO reference 
 type RefIO' = Reference IO
     
 type PartIO s t a b
-  = forall m . (Functor m, Applicative m, Monad m, MonadSubsume (MaybeT IO) m)
+  = forall m . (Functor m, Applicative m, Monad m, MaybeT IO !<! m)
     => Reference m s t a b
 
+-- | Strictly partial IO lens
 type PartIO' = Reference (MaybeT IO)
     
 type TravIO s t a b
-  = forall m . (Functor m, Applicative m, Monad m, MonadSubsume (ListT IO) m)
+  = forall m . (Functor m, Applicative m, Monad m, ListT IO !<! m)
     => Reference m s t a b
 
+-- | Strictly IO traversal
 type TravIO' = Reference (ListT IO)
-                        
--- | Combines the functionality of two monads into one. Has two functions that lift a 
--- monadic action into the result monad.
-class Monad (ResultMonad m1 m2) => MonadCompose (m1 :: * -> *) (m2 :: * -> *) where
-  -- | The type of the result monad
-  type ResultMonad m1 m2 :: * -> *
-  -- | A phantom type to help coercions. Coercions are often needed when only one of
-  -- the lifting functions are used.
-  data ComposePhantom m1 m2 :: *
-  -- | Creates a new phantom variable to state that two liftings result in the same type.
-  newComposePhantom :: ComposePhantom m1 m2
-  -- | Lifts the first monad into the result monad.
-  liftMC1 :: ComposePhantom m1 m2 -> m1 a -> ResultMonad m1 m2 a
-  -- | Lifts the second monad into the result monad.
-  liftMC2 :: ComposePhantom m1 m2 -> m2 a -> ResultMonad m1 m2 a
   
 -- | States that 'm1' can be represented with 'm2'
-class MonadSubsume (m1 :: * -> *) (m2 :: * -> *) where
+class (m1 :: * -> *) !<! (m2 :: * -> *) where
   -- | Lifts the first monad into the second.
   liftMS :: m1 a -> m2 a
+
+instance IO !<! (MaybeT IO) where
+  liftMS = MaybeT . liftM Just
+
+instance IO !<! (ListT IO) where
+  liftMS = ListT . liftM (:[])
+
+instance IO !<! IO where
+  liftMS = id
+
+instance Identity !<! Maybe where
+  liftMS = return . runIdentity
+
+instance Identity !<! [] where
+  liftMS = return . runIdentity
+
   
-class Summarize (m :: * -> *) where
+-- | Applies a function representing the change in some higher monad inside a lower monad.
+class (mr !<! ms) => SummarizeInto ms mr where
+  summarizeInto :: (a -> ms a) -> a -> mr a
   
-  -- | Applies the function to the original value, producing a pure value.
-  summarize :: (a -> m a) -> a -> a
-  summarize f s = runIdentity $ summarizeM (return . f) s
+instance SummarizeInto Maybe Identity where
+  summarizeInto f s = liftM (fromMaybe s) (return (f s))
 
-  summarizeM :: (Monad f) => (a -> f (m a)) -> a -> f a
+instance SummarizeInto [] Identity where
+  summarizeInto f s = case f s of [] -> return s
+                                  x:_ -> summarizeInto (tail . f) x
 
-instance Summarize Identity where
-  summarizeM f = liftM runIdentity . f
+instance SummarizeInto IO IO where
+  summarizeInto = id
   
-instance Summarize Maybe where
-  summarizeM f s = liftM (fromMaybe s) (f s)
+instance SummarizeInto (MaybeT IO) IO where
+  summarizeInto f a = liftM (fromMaybe a) (runMaybeT (f a)) 
 
-instance Summarize [] where
-  summarizeM f s = f s >>= \case [] -> return s
-                                 x:_ -> summarizeM (liftM tail . f) x
+instance SummarizeInto (ListT IO) IO where
+  summarizeInto f a = runListT (f a) >>= \case [] -> return a
+                                               x:_ -> summarizeInto (mapListT (liftM tail) . f) x
 
-class SummarizeFor ms mr where
-  summarizeFor :: (a -> ms a) -> a -> mr a
+summarize :: SummarizeInto m Identity => (a -> m a) -> a -> a
+summarize f = runIdentity . summarizeInto f
 
-instance SummarizeFor IO IO where
-  summarizeFor f = f
+
+class Monad m => CloseMonad m where
+  normalizeClose :: m a -> m ()
+
+instance CloseMonad Identity where
+  normalizeClose _ = return ()
   
-instance SummarizeFor (MaybeT IO) IO where
-  summarizeFor f = summarizeM (runMaybeT . f)
+instance CloseMonad Maybe where
+  normalizeClose _ = return ()
+  
+instance CloseMonad [] where
+  normalizeClose _ = return ()
+  
+instance CloseMonad IO where
+  normalizeClose act = act >> return ()
+  
+instance CloseMonad m => CloseMonad (MaybeT m) where
+  normalizeClose = MaybeT . liftM return . normalizeClose . runMaybeT
+  
+instance CloseMonad m => CloseMonad (ListT m) where
+  normalizeClose = ListT . liftM return . normalizeClose . runListT
 
-instance SummarizeFor (ListT IO) IO where
-  summarizeFor f = summarizeM (runListT . f)
 
+instance CloseMonad (StateT s IO) where
+  normalizeClose = mapStateT (liftM $ \(_,s) -> ((),s))
 
+instance CloseMonad (StateT s Identity) where
+  normalizeClose = mapStateT (liftM $ \(_,s) -> ((),s))
+
+instance Monoid s => CloseMonad (WriterT s IO) where
+  normalizeClose = mapWriterT (liftM $ \(_,s) -> ((),s))
+
+instance Monoid s => CloseMonad (WriterT s Identity) where
+  normalizeClose = mapWriterT (liftM $ \(_,s) -> ((),s))

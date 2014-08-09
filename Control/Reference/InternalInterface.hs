@@ -3,7 +3,7 @@ module Control.Reference.InternalInterface
        , Lens, Lens'
        , Traversal, Traversal'
        , LensPart, LensPart'
-       , MonadSubsume(..)
+       , (!<!)(..)
        , module ExportedModules
        ) where
 

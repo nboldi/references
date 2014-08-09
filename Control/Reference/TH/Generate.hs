@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase, TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
 -- | This module can be used to generate references for record fields.
@@ -33,7 +33,7 @@
 -- > snd' :: Monad w => Lens' w (Tuple a c) (Tuple a d) c d
 -- > snd' = lens _snd' (\b tup -> tup { _snd' = b })
 --
-module Control.Reference.TH.Generate (makeReferences) where
+module Control.Reference.TH.Generate (makeReferences, debugTH) where
 
 import Language.Haskell.TH hiding (ListT)
 import qualified Data.Map as M
@@ -54,20 +54,21 @@ import Control.Reference.Examples.TH
 import Control.Reference.TH.MonadInstances
 import Control.Reference.TupleInstances
 
+debugTH :: Q [Dec] -> Q [Dec]
+debugTH d = d >>= runIO . putStrLn . pprint >> return []
+
 -- | Creates references for fields of a data structure.
 makeReferences :: Name -> Q [Dec]
 makeReferences n 
   = do inf <- reify n
-       res <- case inf of
-                TyConI decl -> case newtypeToData decl of
-                  DataD ctx tyConName args cons _ -> case cons of
-                    [con] -> makeLensesForCon tyConName args con 
-                    _ -> liftM concat $ mapM (makePartialLensesForCon tyConName args cons) cons
-                  _ -> fail "makeReferences: Unsupported data type"
-                _ -> fail "makeReferences: Expected the name of a data type or newtype"
+       case inf of
+         TyConI decl -> case newtypeToData decl of
+           DataD ctx tyConName args cons _ -> case cons of
+             [con] -> makeLensesForCon tyConName args con 
+             _ -> liftM concat $ mapM (makePartialLensesForCon tyConName args cons) cons
+           _ -> fail "makeReferences: Unsupported data type"
+         _ -> fail "makeReferences: Expected the name of a data type or newtype"
                 
-       -- runIO $ putStrLn $ pprint res
-       return res
 
 makeLensesForCon :: Name -> [TyVarBndr] -> Con -> Q [Dec]
 makeLensesForCon tyName tyVars (RecC conName conFields) 
@@ -112,7 +113,7 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
            = do matchesWithField <- mapM matchWithField consWithField 
                 matchesWithoutField <- mapM matchWithoutField consWithoutField
                 name <- newName "x"
-                return $ VarE 'polyPartial 
+                return $ VarE 'partial 
                            `AppE` LamE [VarP name]
                                        (CaseE (VarE name)
                                               ( matchesWithField ++ matchesWithoutField ))
@@ -126,7 +127,7 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
                 setVar <- newName "b"
                 let Just bindInd = fieldIndex fldName con
                     bindRight 
-                      = ConE 'Just 
+                      = ConE 'Right 
                           `AppE` TupE [ VarE (vars !! bindInd)
                                       , LamE [VarP setVar] 
                                              (funApplication & element (bindInd+1)
@@ -136,8 +137,8 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
                          
          matchWithoutField :: Con -> Q Match
          matchWithoutField con 
-           = do (bind, _, _) <- bindAndRebuild con
-                return $ Match bind (NormalB (ConE 'Nothing)) []
+           = do (bind, rebuild, _) <- bindAndRebuild con
+                return $ Match bind (NormalB (ConE 'Left `AppE` rebuild)) []
                                        
            
 referenceType :: Type -> Name -> [TyVarBndr] -> Type -> Q Type
@@ -145,7 +146,7 @@ referenceType refType name args fldTyp
   = do let argTypes = args ^* traverse&typeVarName
        (fldTyp',mapping) <- makePoly argTypes fldTyp
        let args' = traverse&typeVarName *- (\a -> fromMaybe a (mapping ^? element a)) $ args
-       return $ ForallT (map PlainTV (M.elems mapping ++ argTypes)) [] 
+       return $ ForallT (map PlainTV (sort (nub (M.elems mapping ++ argTypes)))) [] 
                         (refType `AppT` addTypeArgs name args 
                                  `AppT` addTypeArgs name args' 
                                  `AppT` fldTyp 
@@ -154,8 +155,8 @@ referenceType refType name args fldTyp
 -- | Creates a new field type with changing the type variables that are bound outside
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
-  = runStateT (summarizeM (runListT . (typVarsBounded #~ updateName)) fldTyp) M.empty           
-  where typVarsBounded = typeVariables & filteredTrav (`elem` typArgs)
+  = runStateT (summarizeInto (typVarsBounded #~ updateName) fldTyp) M.empty           
+  where typVarsBounded = typeVariables & filtered (`elem` typArgs)
         updateName :: Name -> ListT (StateT (M.Map Name Name) Q) Name
         updateName name = do name' <- lift $ lift (newName (nameBase name ++ "'")) 
                              lift $ modify (M.insert name name')
@@ -169,7 +170,7 @@ refName = nameBaseStr .- \case '_':xs -> xs; xs -> '_':xs
 -- * Helper functions 
 
 hasField :: Name -> Con -> Bool
-hasField n = not . null . (^* recFields & traverse & _1 & filteredTrav (==n))
+hasField n = not . null . (^* recFields & traverse & _1 & filtered (==n))
          
 fieldIndex :: Name -> Con -> Maybe Int
 fieldIndex n con = (con ^? recFields) >>= findIndex (\f -> (f ^. _1) == n)
@@ -195,5 +196,18 @@ bindAndRebuild con
               , bindVars
               )
 
-instance MonadSubsume [] (ListT (StateT s Q)) where
+instance [] !<! (ListT (StateT s Q)) where
   liftMS = ListT . return
+
+instance Monad m => StateT s m !<! ListT (StateT s m) where
+  liftMS = lift
+
+instance Monad m => SummarizeInto (ListT (StateT s m)) (StateT s m) where
+  summarizeInto f a = runListT (f a) >>= \case [] -> return a
+                                               x:_ -> summarizeInto (mapListT (liftM tail) . f) x
+
+instance CloseMonad (StateT s Q) where
+  normalizeClose = mapStateT (liftM $ \(_,s) -> ((),s))
+
+instance Monoid s => CloseMonad (WriterT s Q) where
+  normalizeClose = mapWriterT (liftM $ \(_,s) -> ((),s))
