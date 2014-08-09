@@ -1,77 +1,194 @@
-{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, TypeFamilies, FlexibleContexts, FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses #-}
+{-# LANGUAGE LambdaCase, TypeOperators #-}
 
 -- | Common operators for references
 module Control.Reference.Operators where
-
 import Control.Reference.Representation
-
 import Control.Monad.Identity
-        
-infixl 4 .~
+import Control.Monad.Trans
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.List
+import Control.Applicative
+
+infixl 4 #=
 infixl 4 .=
-infixl 4 %~
-infixl 4 %~=
-infixl 4 %=
+infixl 4 ?=
+infixl 4 *=
+infixl 4 !=
+infixl 4 ?!=
+infixl 4 *!=
+
+infixl 4 #~
+infixl 4 .~
+infixl 4 ?~
+infixl 4 *~
+infixl 4 !~
+infixl 4 ?!~
+infixl 4 *!~
+
+infixl 4 #-
+infixl 4 .-
+infixl 4 ?-
+infixl 4 *-
+infixl 4 !-
+infixl 4 ?!-
+infixl 4 *!-
+
+infixl 4 #|
+infixl 4 !|
+infixl 4 ?!|
+infixl 4 *!|
+
+infixl 4 ^#
 infixl 4 ^.
 infixl 4 ^?
-        
--- | Gets the referenced data
-(^.) :: s -> Reference wm Identity s t a b -> a
-a ^. l = runIdentity (a ^? l)
+infixl 4 ^*
+infixl 4 ^!
+infixl 4 ^?!
+infixl 4 ^*!
 
--- | Gets the referenced data in the reader monad of the lens
-(^?) :: s -> Reference wm rm s t a b -> rm a
-a ^? l = lensGet l a
-        
--- | Sets the referenced data (for lenses with identity writer)
-(.~) :: Reference Identity rm s t a b -> b -> (s -> t)
-l .~ v = runIdentity . (l .= v)
+-- * Getters
 
--- | Sets the referenced data in the writer monad of the lens
-(.=) :: Monad rw => Reference rw rm s t a b -> b -> (s -> rw t)
-l .= v = lensSet l v 
+-- | Gets the referenced data in the monad of the lens
+(^#) :: Monad r => s -> Reference w r s t a b -> r a
+a ^# l = refGet l return a
 
--- | Applies the given function on the referenced data (for lenses with identity writer)
-(%~) :: Reference Identity rm s t a b -> (a -> b) -> (s -> t)
-l %~ trf = runIdentity . lensUpdate l (return . trf)
+-- | Pure version of '^#'
+(^.) :: s -> Lens' s t a b -> a
+a ^. l = runIdentity (a ^# l)
+
+-- | Partial version of '^#'
+(^?) :: s -> LensPart' s t a b -> Maybe a
+a ^? l = a ^# l
+
+-- | Traversal version of '^#'
+(^*) :: s -> Traversal' s t a b -> [a]
+a ^* l = a ^# l
+
+-- | IO version of '^#'
+(^!) :: s -> RefIO' s t a b -> IO a
+a ^! l = a ^# l
+
+-- | Partial IO version of '^#'
+(^?!) :: s -> PartIO' s t a b -> MaybeT IO a
+a ^?! l = a ^# l
+
+-- | Traversal IO version of '^#'
+(^*!) :: s -> TravIO' s t a b -> ListT IO a
+a ^*! l = a ^# l
+
+-- * Setters
+          
+-- | Sets the referenced data in the monad of the reference
+(#=) :: Reference w r s t a b -> b -> s -> w t
+l #= v = \s -> refSet l v s
+
+-- | Setter for lenses
+(.=) :: Lens' s t a b -> b -> s -> t
+l .= v = runIdentity . (l #= v)
+
+-- | Setter for partial lenses
+(?=) :: LensPart' s s a a -> a -> s -> s
+l ?= v = runIdentity . (l #= v)
+                
+-- | Setter for traversals
+(*=) :: Traversal' s s a a -> a -> s -> s
+l *= v = runIdentity . (l #= v)
+
+-- | Setter for IO.
+(!=) :: RefIO' s t a b -> b -> s -> IO t
+l != v = l #= v
+
+-- | Setter for Partial IO.
+(?!=) :: PartIO' s s a a -> a -> s -> IO s
+l ?!= v = l #= v
+
+-- | Setter for Traversal IO.
+(*!=) :: TravIO' s s a a -> a -> s -> IO s
+l *!= v = l #= v
+
+-- * Updaters
 
 -- | Applies the given monadic function on the referenced data in the monad of the lens
-(%~=) :: Monad rw => Reference rw rm s t a b -> (a -> b) -> (s -> rw t)
-l %~= trf = lensUpdate l (return . trf)
+(#~) :: Reference w r s t a b -> (a -> w b) -> s -> w t
+l #~ trf = refUpdate l trf
+
+(.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
+l .~ trf = runIdentity . (l #~ trf)
+
+(?~) :: LensPart' s t a b -> (a -> Identity b) -> s -> t
+l ?~ trf = runIdentity . (l #~ trf)
+
+(*~) :: Traversal' s t a b -> (a -> Identity b) -> s -> t
+l *~ trf = runIdentity . (l #~ trf)
+
+(!~) :: RefIO' s t a b -> (a -> IO b) -> s -> IO t
+l !~ trf = l #~ trf
+
+(?!~) :: PartIO' s t a b -> (a -> IO b) -> s -> IO t
+l ?!~ trf = l #~ trf
+
+(*!~) :: TravIO' s t a b -> (a -> IO b) -> s -> IO t
+l *!~ trf = l #~ trf
+
+-- * Updaters with pure function inside
 
 -- | Applies the given monadic function on the referenced data in the monad of the lens
-(%=) :: Reference rw rm s t a b -> (a -> rw b) -> (s -> rw t)
-l %= trf = lensUpdate l trf
+(#-) :: Monad w => Reference w r s t a b -> (a -> b) -> s -> w t
+l #- trf = l #~ return . trf
 
--- | Performs the given monadic action on referenced data
-(%!) :: Monad rw => Reference rw rm s s a a -> (a -> rw c) -> (s -> rw s)
-l %! act = lensUpdate l (\v -> act v >> return v)
-            
--- | Composes two references. The two references should have the same writer semantics 
--- and their reader semantics must be composable with 'MonadCompose'.
-(&) :: forall w r1 r2 s t c d a b . ( MonadCompose r1 r2 ) 
-    => Reference w r1 s t c d -> Reference w r2 c d a b
-    -> Reference w (ResultMonad r1 r2) s t a b
-(&) l1 l2 = Reference (\s -> (liftMC1 phr (lensGet l1 s)) >>= (liftMC2 phr . lensGet l2)) 
-                      (lensUpdate l1 . lensSet l2) 
-                      (lensUpdate l1 . lensUpdate l2)
-  where phr = newComposePhantom
+(.-) :: Lens' s t a b -> (a -> b) -> s -> t
+l .- trf = l .~ return . trf
+
+(?-) :: LensPart' s s a a -> (a -> a) -> s -> s
+l ?- trf = l ?~ return . trf
+
+(*-) :: Traversal' s s a a -> (a -> a) -> s -> s
+l *- trf = l *~ return . trf
+
+(!-) :: RefIO' s t a b -> (a -> b) -> s -> IO t
+l !- trf = l !~ return . trf
+
+(?!-) :: PartIO' s s a a -> (a -> a) -> s -> IO s
+l ?!- trf = l ?!~ return . trf
+
+(*!-) :: TravIO' s s a a -> (a -> a) -> s -> IO s
+l *!- trf = l *!~ return . trf
+
+-- * Updaters with only side-effects
+
+-- | Performs the given monadic action on referenced data and gives the original data back
+(#|) :: Monad w => Reference w r s s a a -> (a -> w x) -> s -> w s
+l #| act = l #~ (\v -> act v >> return v)
+
+(!|) :: RefIO' s s a a -> (a -> IO c) -> s -> IO s
+l !| act = l #| act
+
+(?!|) :: PartIO' s s a a -> (a -> IO c) -> s -> IO s
+l ?!| act = l #| act
+
+(*!|) :: TravIO' s s a a -> (a -> IO c) -> s -> IO s
+l *!| act = l #| act
+
+
+-- * Binary operators on references
+
+-- | Composes two references.
+(&) :: (Monad w, Monad r) => Reference w r s t c d -> Reference w r c d a b
+    -> Reference w r s t a b
+(&) l1 l2 = Reference (refGet l1 . refGet l2) 
+                      (refUpdate l1 . refSet l2) 
+                      (refUpdate l1 . refUpdate l2)
   
 infixl 6 &
 
--- | Adds two references. 
--- The references must be monomorphic, because setter needs
--- to change the object twice.
-(&+&) :: forall w r1 r2 r12 r3 a s
-       . (Monad w, MonadPlus r3, MonadCompose r1 r2, r12 ~ ResultMonad r1 r2
-                               , MonadCompose r12 [], r3 ~ (ResultMonad r12 []))
-      => Reference w r1 s s a a -> Reference w r2 s s a a
-      -> Reference w r3 s s a a
-l1 &+& l2 = Reference (\a -> liftMC1 cf2 (liftMC1 cf1 (a ^? l1))
-                                `mplus` liftMC1 cf2 (liftMC2 cf1 (a ^? l2))) 
-                      (\v a -> (l1 .= v) a >>= l2 .= v )
-                      (\trf a -> (l1 %= trf) a >>= (l2 %= trf) )
-    where cf1 = newComposePhantom
-          cf2 = newComposePhantom :: ComposePhantom r12 []
-          
+-- | Adds two references.
+(&+&) :: (Monad w, MonadPlus r, [] !<! r)
+         => Reference w r s s a a -> Reference w r s s a a
+         -> Reference w r s s a a
+l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a) 
+                      (\v -> refSet l1 v >=> refSet l2 v )
+                      (\trf -> refUpdate l1 trf
+                                 >=> refUpdate l2 trf )
 infixl 5 &+&

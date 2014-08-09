@@ -1,10 +1,12 @@
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE KindSignatures, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 -- | This module declares the representation and basic classes of references.
 module Control.Reference.Representation where
 
+import Control.Applicative
+import Control.Monad
 import Control.Monad.Identity (Identity(..))
 import Control.Monad.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
@@ -55,53 +57,103 @@ import Data.Maybe (maybeToList)
 
 -- TODO: represent isomorphisms with a type parameter
 -- TODO: indexed traversals
-data Reference wm rm s t a b
-  = Reference { lensGet :: s -> rm a                    -- ^ Getter for the lens
-              , lensSet :: b -> s -> wm t               -- ^ Setter for the lens
-              , lensUpdate :: (a -> wm b) -> s -> wm t  -- ^ Updater for the lens. 
-                                                        -- Handles monadic update functions.
+data Reference w r s t a b
+  = Reference { refGet    :: forall x . (a -> r x) -> s -> r x      
+                -- ^ Getter for the lens
+              , refSet    :: b -> s -> w t
+                -- ^ Setter for the lens
+              , refUpdate :: (a -> w b) -> s -> w t   
+                -- ^ Updater for the lens. Handles monadic update functions.
               }
+              
+reference :: ( Functor w, Applicative w, Monad w
+             , Functor r, Applicative r, Monad r ) 
+          => (s -> r a) 
+          -> (b -> s -> w t)
+          -> ((a -> w b) -> s -> w t) 
+          -> Reference w r s t a b
+reference gets = Reference (\f s -> gets s >>= f)
               
 -- | A monomorph 'Lens', 'Traversal', 'LensPart', etc... 
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
-
--- | A monomorph 'Lens'', 'Traversal'', 'LensPart'', etc... 
--- Setting or updating does not change the type of the base.
--- Needs @LiberalTypeSynonyms@ language extension
-type Simple' (w :: * -> *) t s a = t w s s a a
-type SimpleRef wm rm s a = Reference wm rm s s a a
               
--- | The Lens is a reference that represents an 1 to 1 relationship.
-type Lens = Reference Identity Identity
-type Lens' w = Reference w Identity
+-- | The Lens is a reference that can represent an 1 to 1 relationship.
+type Lens s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w
+                 , Functor r, Applicative r, Monad r )
+    => Reference w r s t a b
 
--- | The Traversal is a reference that represents an 1 to any relationship.
-type Traversal = Reference Identity []
-type Traversal' w = Reference w []
+type Lens' = Reference Identity Identity
 
--- | The parital lens is a reference that represents an 1 to 0..1 relationship.
-type LensPart = Reference Identity Maybe
-type LensPart' w = Reference w Maybe
+-- | A reference that has a monad to support the empty reference and adding reference parts.
+type RefPlus s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w
+                 , Functor r, Applicative r, MonadPlus r )
+    => Reference w r s t a b
 
- 
--- | Combines the functionality of two monads into one. Has two functions that lift a 
--- monadic action into the result monad.
-class Monad (ResultMonad m1 m2) => MonadCompose (m1 :: * -> *) (m2 :: * -> *) where
-  -- | The type of the result monad
-  type ResultMonad m1 m2 :: * -> *
-  -- | A phantom type to help coercions. Coercions are often needed when only one of
-  -- the lifting functions are used.
-  data ComposePhantom m1 m2 :: *
-  -- | Creates a new phantom variable to state that two liftings result in the same type.
-  newComposePhantom :: ComposePhantom m1 m2
-  -- | Lifts the first monad into the result monad.
-  liftMC1 :: ComposePhantom m1 m2 -> m1 a -> ResultMonad m1 m2 a
-  -- | Lifts the second monad into the result monad.
-  liftMC2 :: ComposePhantom m1 m2 -> m2 a -> ResultMonad m1 m2 a
+-- | The parital lens is a reference that can represent an 1 to 0..1 relationship.
+
+-- TODO: partial laws
+type LensPart s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w
+                 , Functor r, Applicative r, MonadPlus r, Maybe !<! r )
+    => Reference w r s t a b
+
+type LensPart' = Reference Identity Maybe
+
+-- | The Traversal is a reference that can represent an 1 to any relationship.
+
+-- TODO: traversal laws
+type Traversal s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w
+                 , Functor r, Applicative r, MonadPlus r, [] !<! r )
+    => Reference w r s t a b
+
+type Traversal' = Reference Identity []
+
+-- TODO: refIO laws
+type RefIO s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
+                 , Functor r, Applicative r, Monad r, IO !<! r )
+    => Reference w r s t a b
+
+-- | Strictly IO reference 
+type RefIO' = Reference IO IO
+    
+type PartIO s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
+                 , Functor r, Applicative r, Monad r, IO !<! r, Maybe !<! r )
+    => Reference w r s t a b
+
+-- | Strictly partial IO lens
+type PartIO' = Reference IO (MaybeT IO)
+    
+type TravIO s t a b
+  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
+                 , Functor r, Applicative r, Monad r, IO !<! r, [] !<! r )
+    => Reference w r s t a b
+
+-- | Strictly IO traversal
+type TravIO' = Reference IO (ListT IO)
   
 -- | States that 'm1' can be represented with 'm2'
-class MonadSubsume (m1 :: * -> *) (m2 :: * -> *) where
+class (m1 :: * -> *) !<! (m2 :: * -> *) where
   -- | Lifts the first monad into the second.
   liftMS :: m1 a -> m2 a
+
+instance IO !<! (MaybeT IO) where
+  liftMS = MaybeT . liftM Just
+
+instance IO !<! (ListT IO) where
+  liftMS = ListT . liftM (:[])
+
+instance IO !<! IO where
+  liftMS = id
+
+instance Identity !<! Maybe where
+  liftMS = return . runIdentity
+
+instance Identity !<! [] where
+  liftMS = return . runIdentity
   
