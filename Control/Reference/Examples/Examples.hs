@@ -84,10 +84,10 @@ staff :: Lens Dept Dept [Employee] [Employee]
 staff = lens _staff (\b a -> a { _staff = b })  
                        
 name :: Lens Employee Employee String String
-name = fromLens _name _name
+name = fromLens _name
 
 salary :: Lens Employee Employee Float Float
-salary = fromLens _salary _salary
+salary = fromLens _salary
                                      
 dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "Menelaos" 40000]
 
@@ -102,7 +102,7 @@ test14 :: [String]
 test14 = traverse *- (`replicate` 'x') $ [1..10]
 
 test15 :: (String, Char)
-test15 = let lens_1 = fromLens Lens._1 Lens._1
+test15 = let lens_1 = fromLens Lens._1
           in lens_1 .- show $ (2,'a')
 
 test16 :: (Either Int Int, Either Int Int)
@@ -159,7 +159,7 @@ example1 =
 example2 = do consoleLine != "What is your name?" $ Console
               consoleLine !- ("Hello "++) $ Console 
 
-example3 = let logger :: String -> Simple RefIO a a
+example3 = let logger :: String -> Simple IOLens a a
                logger n = referenceWithClose
                             return (const (liftMS $ putStrLn $ n ++ ": read done"))
                             (\b _ -> return b) (const (liftMS $ putStrLn $ n ++ ": write done"))
@@ -171,7 +171,7 @@ example3 = let logger :: String -> Simple RefIO a a
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
 
 -- | Currently not thread-safe
--- fileRef :: Simple PartIO FilePath String
+-- fileRef :: Simple IOPartial FilePath String
 -- fileRef = reference (\fp -> do exist <- liftMS (doesFileExist fp) 
 --                                if exist then liftMS (withFileLock fp Shared 
 --                                                        $ const $ readFile fp)

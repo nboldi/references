@@ -11,20 +11,19 @@ module Control.Reference.Predefined where
 
 import Control.Reference.Representation
 
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Base
+import qualified Data.Traversable as Trav
+import Control.Monad.Trans.Control
+import Control.Monad.Identity
+import Control.Monad.Writer
+import Control.Monad.State
+import Control.Concurrent.MVar.Lifted
 import Control.Concurrent.Chan
 import Data.IORef
 import Data.Map as Map
 import Data.Either.Combinators
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Base
-import Control.Monad.Writer
-import Control.Monad.State
-import Control.Exception.Lifted
-import Control.Concurrent.MVar.Lifted
-import Control.Monad.Trans.Control
-import qualified Control.Lens as Lens
-import qualified Data.Traversable as Trav
 
 -- * Trivial references
 
@@ -37,6 +36,8 @@ self = reference return (const . return) id
 -- | An empty reference that do not traverse anything
 --
 -- > emptyRef &+& a = a &+& emptyRef = a
+--
+-- > a & emptyRef = emptyRef & a = emptyRef
 emptyRef :: Simple RefPlus s a
 emptyRef = reference (const mzero) (const return) (const return)
 
@@ -60,7 +61,7 @@ lens get set = reference (return . get)
                          (\f a -> f (get a) >>= \b -> return $ set b a)
 
 -- | Creates a monomorphic partial lense
-partial :: (s -> Either t (a, b -> t)) -> LensPart s t a b
+partial :: (s -> Either t (a, b -> t)) -> Partial s t a b
 partial access 
   = reference 
       (\s   -> case access s of Left _ -> liftMS Nothing
@@ -71,23 +72,24 @@ partial access
                                 Right (a,set) -> f a >>= return . set)
 
 -- | Creates a simple partial lens
-simplePartial :: (s -> Maybe (a, a -> s)) -> LensPart s s a a
+simplePartial :: (s -> Maybe (a, a -> s)) -> Partial s s a a
 simplePartial access 
   = partial (\s -> case access s of Just x -> Right x
                                     Nothing -> Left s)
                                                      
                                                      
 -- | Clones a lens from "Control.Lens"
-fromLens :: Lens.Lens s s a a -> Lens.Lens s t a b -> Lens s t a b
-fromLens lm lp = reference (\s -> return (s Lens.^. lm)) 
-                           (\b -> return . (lp Lens..~ b))
-                           lp              
-                           
+fromLens :: (forall f . Functor f => (a -> f b) -> s -> f t) -> Lens s t a b
+fromLens l = reference (\s -> return (getConst $ l Const s))
+                       (\b -> return . (runIdentity . l (\_ -> Identity b)))
+                       l
+                 
 -- | Clones a traversal from "Control.Lens"
-fromTraversal :: Lens.Traversal s t a b -> Traversal s t a b
-fromTraversal l = reference (liftMS . execWriter . Lens.mapMOf l (\a -> tell [a] >> return undefined))
-                            (\b -> return . Lens.set l b) l
-                                                           
+fromTraversal :: (forall f . Applicative f => (a -> f b) -> s -> f t) -> Traversal s t a b
+fromTraversal l = reference (liftMS . execWriter . l (\a -> tell [a] >> return undefined))
+                            (\b -> return . (runIdentity . l (\_ -> Identity b)))
+                            l
+
 -- | Filters the traversed elements with a given predicate. 
 -- Has specific versions for traversals and partial lenses.
 filtered :: (a -> Bool) -> Simple RefPlus a a
@@ -98,17 +100,17 @@ filtered p = reference (\s -> if p s then return s else mzero)
 -- * References for simple data structures
 
 -- | A partial lens to access the value that may not exist
-just :: LensPart (Maybe a) (Maybe b) a b
+just :: Partial (Maybe a) (Maybe b) a b
 just = partial (\case Just x -> Right (x, Just)
                       Nothing -> Left Nothing)
 
 -- | A partial lens to access the right option of an 'Either'
-right :: LensPart (Either a b) (Either a c) b c
+right :: Partial (Either a b) (Either a c) b c
 right = partial (\case Right x -> Right (x, Right)
                        Left a -> Left (Left a))
 
 -- | A partial lens to access the left option of an 'Either'                  
-left :: LensPart (Either a c) (Either b c) a b
+left :: Partial (Either a c) (Either b c) a b
 left = partial (\case Left a -> Right (a, Left)
                       Right r -> Left (Right r))
 
@@ -125,18 +127,18 @@ both = reference (\(x,y) -> liftMS [x,y])
                  (\f (x,y) -> (,) <$> f x <*> f y)
 
 -- | References the head of a list
-_head :: Simple LensPart [a] a
+_head :: Simple Partial [a] a
 _head = simplePartial (\case [] -> Nothing; x:xs -> Just (x,(:xs)))
     
 -- | References the tail of a list
-_tail :: Simple LensPart [a] [a]
+_tail :: Simple Partial [a] [a]
 _tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
                  
 -- | Lenses for given values in a data structure that is indexed by keys.
 class Association e where
   type AssocIndex e :: *
   type AssocElem e :: *
-  element :: AssocIndex e -> Simple LensPart e (AssocElem e)
+  element :: AssocIndex e -> Simple Partial e (AssocElem e)
           
 instance Association [a] where          
   type AssocIndex [a] = Int
@@ -163,10 +165,13 @@ instance Ord k => Association (Map k v) where
                                                           Nothing -> return m)
 
 -- * Stateful references
-                  
+
+-- | A dummy object to interact with the user through the console.
 data Console = Console
-                  
-consoleLine :: Simple RefIO Console String
+
+-- | Interacts with a line of text on the console. Values set are printed, getting
+-- is reading from the console.
+consoleLine :: Simple IOLens Console String
 consoleLine 
   = reference (const (liftMS getLine)) 
               (\str -> const (liftMS (putStrLn str) >> return Console)) 
@@ -176,8 +181,10 @@ consoleLine
 
                
 -- | Access a value inside an MVar.
+-- Setting is not atomic. If there is two supplier that may set the accessed
+-- value, one may block and can corrupt the following updates.
+--
 -- Reads and updates are done in sequence, always using consistent data.
-
 mvar :: ( Functor w, Applicative w, Monad w, MonadBaseControl IO w
         , Functor r, Applicative r, Monad r, MonadBase IO r)
          => Simple (Reference w r) (MVar a) a
@@ -188,14 +195,14 @@ mvar = reference readMVar
                  (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
 
 
-chan :: Simple RefIO (Chan a) a
+chan :: Simple IOLens (Chan a) a
 chan = reference (liftMS . readChan)
                  (\a ch -> liftMS (writeChan ch a) >> return ch)
                  (\trf ch -> liftMS (readChan ch) >>= trf
                                >>= liftMS . writeChan ch >> return ch)
        
 -- | Access the value of an IORef. 
-ioref :: Simple RefIO (IORef a) a
+ioref :: Simple IOLens (IORef a) a
 ioref = reference (liftMS . readIORef)
                   (\v ior -> liftMS (atomicWriteIORef ior v) >> return ior) 
                   (\trf ior -> liftMS (readIORef ior)

@@ -59,7 +59,7 @@ a ^# l = refGet l return a
 a ^. l = runIdentity (a ^# l)
 
 -- | Partial version of '^#'
-(^?) :: s -> LensPart' s t a b -> Maybe a
+(^?) :: s -> Partial' s t a b -> Maybe a
 a ^? l = a ^# l
 
 -- | Traversal version of '^#'
@@ -67,15 +67,15 @@ a ^? l = a ^# l
 a ^* l = a ^# l
 
 -- | IO version of '^#'
-(^!) :: s -> RefIO' s t a b -> IO a
+(^!) :: s -> IOLens' s t a b -> IO a
 a ^! l = a ^# l
 
 -- | Partial IO version of '^#'
-(^?!) :: s -> PartIO' s t a b -> IO (Maybe a)
+(^?!) :: s -> IOPartial' s t a b -> IO (Maybe a)
 a ^?! l = runMaybeT (a ^# l)
 
 -- | Traversal IO version of '^#'
-(^*!) :: s -> TravIO' s t a b -> IO [a]
+(^*!) :: s -> IOTraversal' s t a b -> IO [a]
 a ^*! l = runListT (a ^# l)
 
 -- * Setters
@@ -89,7 +89,7 @@ l #= v = \s -> refSet l v s
 l .= v = runIdentity . (l #= v)
 
 -- | Setter for partial lenses
-(?=) :: LensPart' s t a b -> b -> s -> t
+(?=) :: Partial' s t a b -> b -> s -> t
 l ?= v = runIdentity . (l #= v)
                 
 -- | Setter for traversals
@@ -97,15 +97,15 @@ l ?= v = runIdentity . (l #= v)
 l *= v = runIdentity . (l #= v)
 
 -- | Setter for IO.
-(!=) :: RefIO' s t a b -> b -> s -> IO t
+(!=) :: IOLens' s t a b -> b -> s -> IO t
 l != v = l #= v
 
 -- | Setter for Partial IO.
-(?!=) :: PartIO' s t a b -> b -> s -> IO t
+(?!=) :: IOPartial' s t a b -> b -> s -> IO t
 l ?!= v = l #= v
 
 -- | Setter for Traversal IO.
-(*!=) :: TravIO' s t a b -> b -> s -> IO t
+(*!=) :: IOTraversal' s t a b -> b -> s -> IO t
 l *!= v = l #= v
 
 -- * Updaters
@@ -117,19 +117,19 @@ l #~ trf = refUpdate l trf
 (.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
 l .~ trf = runIdentity . (l #~ trf)
 
-(?~) :: LensPart' s t a b -> (a -> Identity b) -> s -> t
+(?~) :: Partial' s t a b -> (a -> Identity b) -> s -> t
 l ?~ trf = runIdentity . (l #~ trf)
 
 (*~) :: Traversal' s t a b -> (a -> Identity b) -> s -> t
 l *~ trf = runIdentity . (l #~ trf)
 
-(!~) :: RefIO' s t a b -> (a -> IO b) -> s -> IO t
+(!~) :: IOLens' s t a b -> (a -> IO b) -> s -> IO t
 l !~ trf = l #~ trf
 
-(?!~) :: PartIO' s t a b -> (a -> IO b) -> s -> IO t
+(?!~) :: IOPartial' s t a b -> (a -> IO b) -> s -> IO t
 l ?!~ trf = l #~ trf
 
-(*!~) :: TravIO' s t a b -> (a -> IO b) -> s -> IO t
+(*!~) :: IOTraversal' s t a b -> (a -> IO b) -> s -> IO t
 l *!~ trf = l #~ trf
 
 -- * Updaters with pure function inside
@@ -141,19 +141,19 @@ l #- trf = l #~ return . trf
 (.-) :: Lens' s t a b -> (a -> b) -> s -> t
 l .- trf = l .~ return . trf
 
-(?-) :: LensPart' s t a b -> (a -> b) -> s -> t
+(?-) :: Partial' s t a b -> (a -> b) -> s -> t
 l ?- trf = l ?~ return . trf
 
 (*-) :: Traversal' s t a b -> (a -> b) -> s -> t
 l *- trf = l *~ return . trf
 
-(!-) :: RefIO' s t a b -> (a -> b) -> s -> IO t
+(!-) :: IOLens' s t a b -> (a -> b) -> s -> IO t
 l !- trf = l !~ return . trf
 
-(?!-) :: PartIO' s t a b -> (a -> b) -> s -> IO t
+(?!-) :: IOPartial' s t a b -> (a -> b) -> s -> IO t
 l ?!- trf = l ?!~ return . trf
 
-(*!-) :: TravIO' s t a b -> (a -> b) -> s -> IO t
+(*!-) :: IOTraversal' s t a b -> (a -> b) -> s -> IO t
 l *!- trf = l *!~ return . trf
 
 -- * Updaters with only side-effects
@@ -162,13 +162,13 @@ l *!- trf = l *!~ return . trf
 (#|) :: Monad w => Reference w r s s a a -> (a -> w x) -> s -> w s
 l #| act = l #~ (\v -> act v >> return v)
 
-(!|) :: RefIO' s s a a -> (a -> IO c) -> s -> IO s
+(!|) :: IOLens' s s a a -> (a -> IO c) -> s -> IO s
 l !| act = l #| act
 
-(?!|) :: PartIO' s s a a -> (a -> IO c) -> s -> IO s
+(?!|) :: IOPartial' s s a a -> (a -> IO c) -> s -> IO s
 l ?!| act = l #| act
 
-(*!|) :: TravIO' s s a a -> (a -> IO c) -> s -> IO s
+(*!|) :: IOTraversal' s s a a -> (a -> IO c) -> s -> IO s
 l *!| act = l #| act
 
 
@@ -184,6 +184,14 @@ l *!| act = l #| act
 infixl 6 &
 
 -- | Adds two references.
+--
+-- Using this operator may result in accessing the same parts of data multiple times.
+-- For example @ twice = self &+& self @ is a reference that accesses itself twice:
+--
+-- > a ^* twice == [a,a]
+-- > (twice *= x) a == x
+-- > (twice *- f) a == f (f a)
+--
 (&+&) :: (Monad w, MonadPlus r, [] !<! r)
          => Reference w r s s a a -> Reference w r s s a a
          -> Reference w r s s a a

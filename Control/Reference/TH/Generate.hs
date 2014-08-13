@@ -101,7 +101,7 @@ makePartialLensesForCon _ _ _ _ = return []
            
 createPartialLensForField :: Name -> [TyVarBndr] -> Name -> [Con] -> Name -> Type -> Q [Dec]
 createPartialLensForField  typName typArgs conName cons fldName fldTyp 
-  = do lTyp <- referenceType (ConT ''LensPart) typName typArgs fldTyp  
+  = do lTyp <- referenceType (ConT ''Partial) typName typArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
               , ValD (VarP lensName) (NormalB $ lensBody) []
@@ -156,7 +156,7 @@ referenceType refType name args fldTyp
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
   = runStateT (typVarsBounded #~ updateName $ fldTyp) M.empty           
-  where typVarsBounded :: Simple (TravState' (M.Map Name Name) Q) Type Name
+  where typVarsBounded :: Simple (StateTraversal' (M.Map Name Name) Q) Type Name
         typVarsBounded = typeVariables & filtered (`elem` typArgs)
         updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
                              modify (M.insert name name')

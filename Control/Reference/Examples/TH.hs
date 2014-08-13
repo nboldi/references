@@ -33,7 +33,7 @@ typeVarName = lens (\case PlainTV n -> n; KindedTV n _ -> n)
 nameBaseStr :: Simple Lens Name String
 nameBaseStr = iso nameBase mkName
 
-recFields :: Simple LensPart Con [(Name, Strict, Type)]
+recFields :: Simple Partial Con [(Name, Strict, Type)]
 recFields = partial (\case (RecC name flds) -> Right (flds, \flds' -> RecC name flds')
                            c -> Left c)
 
