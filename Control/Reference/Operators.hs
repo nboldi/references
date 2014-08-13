@@ -71,12 +71,12 @@ a ^* l = a ^# l
 a ^! l = a ^# l
 
 -- | Partial IO version of '^#'
-(^?!) :: s -> PartIO' s t a b -> MaybeT IO a
-a ^?! l = a ^# l
+(^?!) :: s -> PartIO' s t a b -> IO (Maybe a)
+a ^?! l = runMaybeT (a ^# l)
 
 -- | Traversal IO version of '^#'
-(^*!) :: s -> TravIO' s t a b -> ListT IO a
-a ^*! l = a ^# l
+(^*!) :: s -> TravIO' s t a b -> IO [a]
+a ^*! l = runListT (a ^# l)
 
 -- * Setters
           
@@ -89,11 +89,11 @@ l #= v = \s -> refSet l v s
 l .= v = runIdentity . (l #= v)
 
 -- | Setter for partial lenses
-(?=) :: LensPart' s s a a -> a -> s -> s
+(?=) :: LensPart' s t a b -> b -> s -> t
 l ?= v = runIdentity . (l #= v)
                 
 -- | Setter for traversals
-(*=) :: Traversal' s s a a -> a -> s -> s
+(*=) :: Traversal' s t a b -> b -> s -> t
 l *= v = runIdentity . (l #= v)
 
 -- | Setter for IO.
@@ -101,11 +101,11 @@ l *= v = runIdentity . (l #= v)
 l != v = l #= v
 
 -- | Setter for Partial IO.
-(?!=) :: PartIO' s s a a -> a -> s -> IO s
+(?!=) :: PartIO' s t a b -> b -> s -> IO t
 l ?!= v = l #= v
 
 -- | Setter for Traversal IO.
-(*!=) :: TravIO' s s a a -> a -> s -> IO s
+(*!=) :: TravIO' s t a b -> b -> s -> IO t
 l *!= v = l #= v
 
 -- * Updaters
@@ -141,19 +141,19 @@ l #- trf = l #~ return . trf
 (.-) :: Lens' s t a b -> (a -> b) -> s -> t
 l .- trf = l .~ return . trf
 
-(?-) :: LensPart' s s a a -> (a -> a) -> s -> s
+(?-) :: LensPart' s t a b -> (a -> b) -> s -> t
 l ?- trf = l ?~ return . trf
 
-(*-) :: Traversal' s s a a -> (a -> a) -> s -> s
+(*-) :: Traversal' s t a b -> (a -> b) -> s -> t
 l *- trf = l *~ return . trf
 
 (!-) :: RefIO' s t a b -> (a -> b) -> s -> IO t
 l !- trf = l !~ return . trf
 
-(?!-) :: PartIO' s s a a -> (a -> a) -> s -> IO s
+(?!-) :: PartIO' s t a b -> (a -> b) -> s -> IO t
 l ?!- trf = l ?!~ return . trf
 
-(*!-) :: TravIO' s s a a -> (a -> a) -> s -> IO s
+(*!-) :: TravIO' s t a b -> (a -> b) -> s -> IO t
 l *!- trf = l *!~ return . trf
 
 -- * Updaters with only side-effects

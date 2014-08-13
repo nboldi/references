@@ -24,8 +24,8 @@
 -- >               | Nothing'
 -- >               
 -- > fromJust' :: Monad w => LensPart' w (Maybe' a) (Maybe' b) a b
--- > fromJust' = polyPartial (\case Just' x -> Right (x, \y -> return (Just' y))
--- >                                Nothing' -> Left (return Nothing'))
+-- > fromJust' = partial (\case Just' x -> Right (x, \y -> return (Just' y))
+-- >                            Nothing' -> Left (return Nothing'))
 -- >
 -- > data Tuple a b = Tuple { _fst' :: a, _snd' :: b }
 -- > fst' :: Monad w => Lens' w (Tuple a c) (Tuple b c) a b
@@ -155,11 +155,11 @@ referenceType refType name args fldTyp
 -- | Creates a new field type with changing the type variables that are bound outside
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
-  = runStateT (summarizeInto (typVarsBounded #~ updateName) fldTyp) M.empty           
-  where typVarsBounded = typeVariables & filtered (`elem` typArgs)
-        updateName :: Name -> ListT (StateT (M.Map Name Name) Q) Name
-        updateName name = do name' <- lift $ lift (newName (nameBase name ++ "'")) 
-                             lift $ modify (M.insert name name')
+  = runStateT (typVarsBounded #~ updateName $ fldTyp) M.empty           
+  where typVarsBounded :: Simple (TravState' (M.Map Name Name) Q) Type Name
+        typVarsBounded = typeVariables & filtered (`elem` typArgs)
+        updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
+                             modify (M.insert name name')
                              return name'
                              
 
@@ -188,7 +188,7 @@ newtypeToData d = d
 bindAndRebuild :: Con -> Q (Pat, Exp, [Name])
 bindAndRebuild con 
   = do let name = con ^. conName
-           fields = con ^. conFields'
+           fields = con ^. conFields
        bindVars <- replicateM (length fields) (newName "fld")
        return ( ConP name (map VarP bindVars)
               , -- TODO : use funApplication isomorphisms
@@ -201,13 +201,3 @@ instance [] !<! (ListT (StateT s Q)) where
 
 instance Monad m => StateT s m !<! ListT (StateT s m) where
   liftMS = lift
-
-instance Monad m => SummarizeInto (ListT (StateT s m)) (StateT s m) where
-  summarizeInto f a = runListT (f a) >>= \case [] -> return a
-                                               x:_ -> summarizeInto (mapListT (liftM tail) . f) x
-
-instance CloseMonad (StateT s Q) where
-  normalizeClose = mapStateT (liftM $ \(_,s) -> ((),s))
-
-instance Monoid s => CloseMonad (WriterT s Q) where
-  normalizeClose = mapWriterT (liftM $ \(_,s) -> ((),s))

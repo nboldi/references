@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase, TypeOperators #-}
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
 
 -- | A collection of random example references
 module Control.Reference.Examples.Examples where
@@ -17,6 +17,9 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
 import Control.Monad.Writer
 import Language.Haskell.TH hiding (ListT)
+import System.Directory
+import System.FileLock
+import Network.Socket
 
 import Test.HUnit
 
@@ -58,8 +61,9 @@ test10 = [1..10] ^* _tail&traverse &+& _tail&_tail&traverse
 test11 :: [Int]
 test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 
-test12 :: ListT (Writer [String]) (Int,Int)
-test12 = both #| (lift . tell . (:[]) . show) $ (0, 1)
+test12 :: Writer [String] (Int,Int)
+test12 = (both :: Simple (TravWriter' [String] Identity) (Int,Int) Int) 
+  #| (tell . (:[]) . show) $ (0, 1)
 
 instance Monoid s => [] !<! (ListT (Writer s)) where
   liftMS = ListT . return 
@@ -87,13 +91,15 @@ salary = fromLens _salary _salary
                                      
 dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "Menelaos" 40000]
 
-test13 :: ListT (Writer (Sum Float)) Dept
-test13 = ((staff&traverse &+& manager)&salary #| lift . tell . Sum)
-           $ manager&name .- ("Mr. "++)
-           $ dept
+test13 :: Writer (Sum Float) Dept
+test13 = let salaryOfEmployees :: Simple (TravWriter' (Sum Float) Identity) Dept Float
+             salaryOfEmployees = (staff&traverse &+& manager)&salary
+          in salaryOfEmployees #| tell . Sum
+               $ manager&name .- ("Mr. "++)
+               $ dept
 
 test14 :: [String]
-test14 = traverse $*- (`replicate` 'x') $ [1..10]
+test14 = traverse *- (`replicate` 'x') $ [1..10]
 
 test15 :: (String, Char)
 test15 = let lens_1 = fromLens Lens._1 Lens._1
@@ -126,7 +132,7 @@ data Maybe' a = Just' { _fromJust' :: a }
 $(makeReferences ''Maybe')
 
 test19 :: Maybe' String
-test19 = fromJust' $?- show $ Just' (42 :: Int)
+test19 = fromJust' ?- show $ Just' (42 :: Int)
     
 data Tuple a b = Tuple { _fst' :: a, _snd' :: b } deriving (Eq, Show)
          
@@ -137,7 +143,7 @@ test20 = fst' .- length
          $ snd' .- show
          $ Tuple "almafa" 42
 
-test = 
+example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
      forkIO $ (result ^! mvar) >>= print >> (mvar != ()) terminator >> return ()
@@ -146,9 +152,38 @@ test =
      forkIO $ ((mvar&just&(element 1)) ?!= 'u' $ hello) >> return ()
      forkIO $ ((mvar&just) ?!- ("Hello" ++) $ hello) >> return ()
      
-     x <- runMaybeT $ hello ^?! (mvar & just) 
+     x <- hello ^?! (mvar & just) 
      mvar != x $ result
      terminator ^! mvar
+
+example2 = do consoleLine != "What is your name?" $ Console
+              consoleLine !- ("Hello "++) $ Console 
+
+example3 = let logger :: String -> Simple RefIO a a
+               logger n = referenceWithClose
+                            return (const (liftMS $ putStrLn $ n ++ ": read done"))
+                            (\b _ -> return b) (const (liftMS $ putStrLn $ n ++ ": write done"))
+                            (\trf a -> trf a) (const (liftMS $ putStrLn $ n ++ ": update done"))
+               loggedConsole = logger "a" & logger "b" & consoleLine
+           in do loggedConsole != "Enter 'x'" $ Console
+                 x <- read <$> (Console ^! loggedConsole) :: IO Int
+                 loggedConsole != "Enter 'y'" $ Console
+                 loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
+
+-- | Currently not thread-safe
+-- fileRef :: Simple PartIO FilePath String
+-- fileRef = reference (\fp -> do exist <- liftMS (doesFileExist fp) 
+--                                if exist then liftMS (withFileLock fp Shared 
+--                                                        $ const $ readFile fp)
+--                                         else liftMS Nothing)
+--                     (\str fp -> liftMS (withFileLock fp Exclusive 
+--                                           $ const $ writeFile fp str) >> return fp) 
+--                     (\trf fp -> do exist <- liftMS (doesFileExist fp)
+--                                    when exist (do lock <- liftMS (lockFile fp Exclusive) 
+--                                                   liftMS (readFile fp) >>= trf 
+--                                                      >>= liftMS . writeFile fp
+--                                                   liftMS (unlockFile lock))
+--                                    return fp)
 
 
 tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
@@ -163,9 +198,9 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test9" [(),(),(),()] test9
                  , TestCase $ assertEqual "test10" ([2..10]++[3..10]) test10
                  , TestCase $ assertEqual "test11" ([1,2]++replicate 8 3) test11
-                 , TestCase $ assertEqual "test12" ["0","1"] (execWriter (runListT test12))
+                 , TestCase $ assertEqual "test12" ["0","1"] (execWriter test12)
                  , TestCase $ assertEqual "test13" (dept { _manager = Employee "Mr. Agamemnon" 100000 }, Sum 170000)
-                                                   (runWriter (head <$> runListT test13))
+                                                   (runWriter test13)
                  , TestCase $ assertEqual "test14" [replicate i 'x' | i <- [1..10]] test14
                  , TestCase $ assertEqual "test15" ("2",'a') test15
                  , TestCase $ assertEqual "test16" (Left 3, Right 1) test16

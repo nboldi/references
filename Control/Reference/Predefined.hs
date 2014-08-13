@@ -11,15 +11,18 @@ module Control.Reference.Predefined where
 
 import Control.Reference.Representation
 
-import Control.Concurrent
+import Control.Concurrent.Chan
 import Data.IORef
-import Data.Maybe
 import Data.Map as Map
 import Data.Either.Combinators
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.Writer
 import Control.Monad.State
+import Control.Exception.Lifted
+import Control.Concurrent.MVar.Lifted
+import Control.Monad.Trans.Control
 import qualified Control.Lens as Lens
 import qualified Data.Traversable as Trav
 
@@ -58,13 +61,22 @@ lens get set = reference (return . get)
 
 -- | Creates a monomorphic partial lense
 partial :: (s -> Either t (a, b -> t)) -> LensPart s t a b
-partial access = reference (\s -> case access s of Left _ -> liftMS Nothing
-                                                   Right (a,_) -> return a)
-                           (\b s -> case access s of Left t -> return t
-                                                     Right (_,set) -> return (set b))
-                           (\f s -> case access s of Left t -> return t
-                                                     Right (a,set) -> f a >>= return . set)
+partial access 
+  = reference 
+      (\s   -> case access s of Left _ -> liftMS Nothing
+                                Right (a,_) -> return a)
+      (\b s -> case access s of Left t -> return t
+                                Right (_,set) -> return (set b))
+      (\f s -> case access s of Left t -> return t
+                                Right (a,set) -> f a >>= return . set)
 
+-- | Creates a simple partial lens
+simplePartial :: (s -> Maybe (a, a -> s)) -> LensPart s s a a
+simplePartial access 
+  = partial (\s -> case access s of Just x -> Right x
+                                    Nothing -> Left s)
+                                                     
+                                                     
 -- | Clones a lens from "Control.Lens"
 fromLens :: Lens.Lens s s a a -> Lens.Lens s t a b -> Lens s t a b
 fromLens lm lp = reference (\s -> return (s Lens.^. lm)) 
@@ -114,11 +126,11 @@ both = reference (\(x,y) -> liftMS [x,y])
 
 -- | References the head of a list
 _head :: Simple LensPart [a] a
-_head = partial (\case [] -> Left []; x:xs -> Right (x,(:xs)))
+_head = simplePartial (\case [] -> Nothing; x:xs -> Just (x,(:xs)))
     
 -- | References the tail of a list
 _tail :: Simple LensPart [a] [a]
-_tail = partial (\case [] -> Left []; x:xs -> Right (xs,(x:)))
+_tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
                  
 -- | Lenses for given values in a data structure that is indexed by keys.
 class Association e where
@@ -151,28 +163,44 @@ instance Ord k => Association (Map k v) where
                                                           Nothing -> return m)
 
 -- * Stateful references
-                                                          
--- | Access a value inside an MVar. Writing should only be used for initial 
--- assignment or parts of the program will block infinitely. Reads and updates are done in sequence,
--- always using consistent data.
+                  
+data Console = Console
+                  
+consoleLine :: Simple RefIO Console String
+consoleLine 
+  = reference (const (liftMS getLine)) 
+              (\str -> const (liftMS (putStrLn str) >> return Console)) 
+              (\f -> const (liftMS getLine >>= f 
+                                           >>= liftMS . putStrLn 
+                                           >> return Console))
 
--- TODO: could mvar be polymorphic? (withMVar is OK for update, but coercion is needed for set)
-mvar :: (Functor r, Applicative r, Monad r, IO !<! r) 
-     => Simple (Reference IO r) (MVar a) a
-mvar = reference (liftMS . readMVar)
-                 (\newVal mv -> liftMS (putMVar mv newVal) >> return mv)     
-                 (\trf mv -> liftMS (modifyMVar_ mv trf) >> return mv)     
-          
--- | Access the value of an IORef.
+               
+-- | Access a value inside an MVar.
+-- Reads and updates are done in sequence, always using consistent data.
 
--- TODO: could ioref be polymorphic?
-ioref :: (Functor r, Applicative r, Monad r, IO !<! r) 
-      => Simple (Reference IO r) (IORef a) a
-ioref = reference (liftMS . readIORef) (\v ior -> liftMS (atomicWriteIORef ior v) >> return ior) 
+mvar :: ( Functor w, Applicative w, Monad w, MonadBaseControl IO w
+        , Functor r, Applicative r, Monad r, MonadBase IO r)
+         => Simple (Reference w r) (MVar a) a
+mvar = reference readMVar
+                 (\newVal mv -> do empty <- isEmptyMVar mv
+                                   when empty (swapMVar mv newVal >> return ())
+                                   return mv)
+                 (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
+
+
+chan :: Simple RefIO (Chan a) a
+chan = reference (liftMS . readChan)
+                 (\a ch -> liftMS (writeChan ch a) >> return ch)
+                 (\trf ch -> liftMS (readChan ch) >>= trf
+                               >>= liftMS . writeChan ch >> return ch)
+       
+-- | Access the value of an IORef. 
+ioref :: Simple RefIO (IORef a) a
+ioref = reference (liftMS . readIORef)
+                  (\v ior -> liftMS (atomicWriteIORef ior v) >> return ior) 
                   (\trf ior -> liftMS (readIORef ior)
-                                 >>= \v -> liftMS (trf v >>= writeIORef ior >> return ior)
-                  ) 
-  
+                                 >>= trf >>= liftMS . writeIORef ior >> return ior) 
+        
 -- | Access the state inside a state monad (from any context).
 state :: ( Functor w, Applicative w, Monad w, MonadState s w
          , Functor r, Applicative r, Monad r, MonadState s r ) 

@@ -3,14 +3,20 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
 -- | This module declares the representation and basic classes of references.
+
+
+-- TODO: references that can be flipped (isomorphisms and prisms)
+-- TODO: indexed traversals
+-- TODO: read-only and write-only references
 module Control.Reference.Representation where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.State (StateT)
+import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
 import Control.Monad.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
-import Data.Maybe (maybeToList)
 
 -- | A reference is an accessor to a part or different view of some data. 
 -- The reference, unlike the lens has a separate getter, setter and updater.
@@ -55,8 +61,6 @@ import Data.Maybe (maybeToList)
 --   ['a'] The accessed part.
 --   ['b'] The accessed part can be changed to this.
 
--- TODO: represent isomorphisms with a type parameter
--- TODO: indexed traversals
 data Reference w r s t a b
   = Reference { refGet    :: forall x . (a -> r x) -> s -> r x      
                 -- ^ Getter for the lens
@@ -73,7 +77,19 @@ reference :: ( Functor w, Applicative w, Monad w
           -> ((a -> w b) -> s -> w t) 
           -> Reference w r s t a b
 reference gets = Reference (\f s -> gets s >>= f)
-              
+
+referenceWithClose
+  :: ( Functor w, Applicative w, Monad w
+             , Functor r, Applicative r, Monad r ) 
+  => (s -> r a) -> (s -> r ())
+  -> (b -> s -> w t) -> (s -> w ())
+  -> ((a -> w b) -> s -> w t) -> (s -> w ())
+  -> Reference w r s t a b
+referenceWithClose get getClose set setClose update updateClose
+  = Reference (\f s -> (get s >>= f) <* getClose s)
+              (\b s -> set b s <* setClose s)
+              (\trf s -> update trf s <* updateClose s)
+                 
 -- | A monomorph 'Lens', 'Traversal', 'LensPart', etc... 
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
@@ -123,7 +139,7 @@ type RefIO' = Reference IO IO
     
 type PartIO s t a b
   = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
-                 , Functor r, Applicative r, Monad r, IO !<! r, Maybe !<! r )
+                 , Functor r, Applicative r, MonadPlus r, IO !<! r, Maybe !<! r )
     => Reference w r s t a b
 
 -- | Strictly partial IO lens
@@ -131,12 +147,20 @@ type PartIO' = Reference IO (MaybeT IO)
     
 type TravIO s t a b
   = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
-                 , Functor r, Applicative r, Monad r, IO !<! r, [] !<! r )
+                 , Functor r, Applicative r, MonadPlus r, IO !<! r, [] !<! r )
     => Reference w r s t a b
 
 -- | Strictly IO traversal
 type TravIO' = Reference IO (ListT IO)
-  
+
+type RefState' s m = Reference (StateT s m) (StateT s m)
+type PartState' s m = Reference (StateT s m) (MaybeT (StateT s m))
+type TravState' s m = Reference (StateT s m) (ListT (StateT s m))
+
+type RefWriter' s m = Reference (WriterT s m) (WriterT s m)
+type PartWriter' s m = Reference (WriterT s m) (MaybeT (WriterT s m))
+type TravWriter' s m = Reference (WriterT s m) (ListT (WriterT s m))
+               
 -- | States that 'm1' can be represented with 'm2'
 class (m1 :: * -> *) !<! (m2 :: * -> *) where
   -- | Lifts the first monad into the second.

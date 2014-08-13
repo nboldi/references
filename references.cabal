@@ -29,10 +29,14 @@ library
                      , Control.Reference.Operators
                      , Control.Reference.Predefined
                      , Control.Reference.TupleInstances
-  build-depends:       base <5 && >=4.6
+                     , Control.Reference.InternalInterface
+  build-depends:       base >=4.6 && <5 
                      , mtl ==2.2.*
                      , transformers ==0.4.*
                      , containers ==0.5.*
                      , either ==4.3.*
                      , lens ==4.2.*
-                     , template-haskell <3 && >=2.8
+                     , template-haskell >=2.8 && <3
+                     , transformers-base >= 0.4 && <0.5
+                     , monad-control >= 0.3 && <0.4
+                     , lifted-base >= 0.2 && <0.3

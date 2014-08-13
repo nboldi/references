@@ -49,9 +49,6 @@ conFields = lens getFlds setFlds
         setFlds [fld1',fld2'] (InfixC _ n _) = InfixC fld1' n fld2'
         setFlds flds' (ForallC bind ctx c) = ForallC bind ctx (setFlds flds' c)
 
-conFields' :: Simple Lens Con [(Strict, Type)]
-conFields' = conFields
-
 conName :: Simple Lens Con Name
 conName = lens getName setName
   where getName (NormalC n _)   = n	
