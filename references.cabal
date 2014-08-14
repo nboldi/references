@@ -34,10 +34,14 @@ description:         References can read, write or update parts of the data.
 		     New references can be created in several ways:
 		     .
 		      * From getter, setter and updater, using the @reference@ function.
-		      * From getter and setter, using one of the simplified functions (@lens@, @simplePartial@, @partial@, ...).
+		     .
+              * From getter and setter, using one of the simplified functions (@lens@, @simplePartial@, @partial@, ...).
+		     .
 		      * Using the `Data.Traversal` instance on a datatype to generate a traversal of each element.
+		     .
 		      * Using lenses from `Control.Lens` package. There are a lot of packages defining lenses, folds and traversals
 		        for various data structures, so it is very useful that all of them can simply be converted into a reference.
+		     .
 		      * Generating references for newly defined records using the `makeReferences` Template Haskell function.
 		     .
 
