@@ -2,37 +2,44 @@
 {-# LANGUAGE LambdaCase, TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
 
--- | This module can be used to generate references for record fields.
--- If the field surely exists, a 'Lens' will be generated.
--- If the field may not exist, it will be a 'LensPart'.
---
--- If the name of the field starts with "_", the name of the field will be the same with "_" removed. 
--- If not, the reference name will be the field name with "_" added te the start.
---
--- The following code sample:
---
--- > data Maybe' a = Just' { _fromJust' :: a }
--- >               | Nothing'
--- > $(makeReferences ''Maybe)
--- >
--- > data Tuple a b = Tuple { _fst' :: a, _snd' :: b }
--- > $(makeReferences ''Tuple)
---
--- Is equivalent to:
--- 
--- > data Maybe' a = Just' { _fromJust' :: a }
--- >               | Nothing'
--- >               
--- > fromJust' :: Monad w => LensPart' w (Maybe' a) (Maybe' b) a b
--- > fromJust' = partial (\case Just' x -> Right (x, \y -> return (Just' y))
--- >                            Nothing' -> Left (return Nothing'))
--- >
--- > data Tuple a b = Tuple { _fst' :: a, _snd' :: b }
--- > fst' :: Monad w => Lens' w (Tuple a c) (Tuple b c) a b
--- > fst' = lens _fst' (\b tup -> tup { _fst' = b })
--- > snd' :: Monad w => Lens' w (Tuple a c) (Tuple a d) c d
--- > snd' = lens _snd' (\b tup -> tup { _snd' = b })
---
+{-|
+This module can be used to generate references for record fields.
+If the field surely exists, a 'Lens' will be generated.
+If the field may not exist, it will be a 'Partial' lens.
+
+It will have the maximum amount of polymorphism it can create.
+
+If the name of the field starts with "_", the name of the field will be the same with "_" removed. 
+If not, the reference name will be the field name with "_" added te the start.
+
+The following code sample:
+
+@
+data Maybe' a = Just' { _fromJust' :: a }
+              | Nothing'
+$(makeReferences ''Maybe)
+
+data Tuple a b = Tuple { _fst' :: a, _snd' :: b }
+$(makeReferences ''Tuple)
+@
+
+Is equivalent to:
+
+@
+data Maybe' a = Just' { _fromJust' :: a }
+              | Nothing'
+              
+fromJust' :: 'Partial' (Maybe' a) (Maybe' b) a b
+fromJust' = 'partial' (\case Just' x -> Right (x, \y -> return (Just' y))
+                           Nothing' -> Left (return Nothing'))
+
+data Tuple a b = Tuple { _fst' :: a, _snd' :: b }
+fst' :: 'Lens' (Tuple a c) (Tuple b c) a b
+fst' = 'lens' _fst' (\b tup -> tup { _fst' = b })
+snd' :: 'Lens' (Tuple a c) (Tuple a d) c d
+snd' = 'lens' _snd' (\b tup -> tup { _snd' = b })
+@
+-}
 module Control.Reference.TH.Generate (makeReferences, debugTH) where
 
 import Language.Haskell.TH hiding (ListT)
@@ -45,7 +52,6 @@ import Control.Monad.Trans
 import Control.Monad.Trans.List
 import Control.Monad.Trans.State
 import Control.Applicative
-import Debug.Trace
 
 import Control.Reference.Representation
 import Control.Reference.Predefined
@@ -54,6 +60,7 @@ import Control.Reference.Examples.TH
 import Control.Reference.TH.MonadInstances
 import Control.Reference.TupleInstances
 
+-- | Shows the generated declarations instead of using them.
 debugTH :: Q [Dec] -> Q [Dec]
 debugTH d = d >>= runIO . putStrLn . pprint >> return []
 
@@ -197,7 +204,7 @@ bindAndRebuild con
               )
 
 instance [] !<! (ListT (StateT s Q)) where
-  liftMS = ListT . return
+  morph = ListT . return
 
 instance Monad m => StateT s m !<! ListT (StateT s m) where
-  liftMS = lift
+  morph = lift

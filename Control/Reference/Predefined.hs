@@ -1,19 +1,21 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase, TupleSections, TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts, ScopedTypeVariables #-}
 {-# LANGUAGE RankNTypes, TypeFamilies, FunctionalDependencies, LiberalTypeSynonyms #-}
+#if defined(__GLASGOW_HASKELL__) && __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE AllowAmbiguousTypes #-}
+#endif
+
 
 -- | Predefined references for commonly used data structures.
 --
 -- When defining lenses one should use the more general types. For instance 'Lens' instead of the more strict 'Lens''. This way references with different @m1@ and @m2@ monads can be combined if there is a monad @m'@ for @m1 !<! m'@ and @m2 !<! m'@.
-
--- TODO: create references that can add or remove elements with prisms
 module Control.Reference.Predefined where
 
 import Control.Reference.Representation
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Base
 import qualified Data.Traversable as Trav
 import Control.Monad.Trans.Control
 import Control.Monad.Identity
@@ -46,7 +48,7 @@ emptyRef = reference (const mzero) (const return) (const return)
 
 -- | Generates a traversal for any 'Trav.Traversable' 'Functor'
 traverse :: (Trav.Traversable t) => Traversal (t a) (t b) a b
-traverse = reference (liftMS . execWriter . Trav.mapM (tell . (:[])))
+traverse = reference (morph . execWriter . Trav.mapM (tell . (:[])))
                      (Trav.mapM . const . return) 
                      Trav.mapM
              
@@ -64,7 +66,7 @@ lens get set = reference (return . get)
 partial :: (s -> Either t (a, b -> t)) -> Partial s t a b
 partial access 
   = reference 
-      (\s   -> case access s of Left _ -> liftMS Nothing
+      (\s   -> case access s of Left _ -> morph Nothing
                                 Right (a,_) -> return a)
       (\b s -> case access s of Left t -> return t
                                 Right (_,set) -> return (set b))
@@ -76,7 +78,7 @@ simplePartial :: (s -> Maybe (a, a -> s)) -> Partial s s a a
 simplePartial access 
   = partial (\s -> case access s of Just x -> Right x
                                     Nothing -> Left s)
-                                                     
+
                                                      
 -- | Clones a lens from "Control.Lens"
 fromLens :: (forall f . Functor f => (a -> f b) -> s -> f t) -> Lens s t a b
@@ -86,7 +88,7 @@ fromLens l = reference (\s -> return (getConst $ l Const s))
                  
 -- | Clones a traversal from "Control.Lens"
 fromTraversal :: (forall f . Applicative f => (a -> f b) -> s -> f t) -> Traversal s t a b
-fromTraversal l = reference (liftMS . execWriter . l (\a -> tell [a] >> return undefined))
+fromTraversal l = reference (morph . execWriter . l (\a -> tell [a] >> return undefined))
                             (\b -> return . (runIdentity . l (\_ -> Identity b)))
                             l
 
@@ -122,7 +124,7 @@ anyway = reference (either return return)
 
 -- | References both elements of a tuple
 both :: Traversal (a,a) (b,b) a b
-both = reference (\(x,y) -> liftMS [x,y]) 
+both = reference (\(x,y) -> morph [x,y]) 
                  (\v -> return . const (v,v)) 
                  (\f (x,y) -> (,) <$> f x <*> f y)
 
@@ -143,7 +145,7 @@ class Association e where
 instance Association [a] where          
   type AssocIndex [a] = Int
   type AssocElem [a] = a
-  element i = reference (liftMS . at i) (\v -> upd (const (return v)))
+  element i = reference (morph . at i) (\v -> upd (const (return v)))
                         upd
     where at :: Int -> [a] -> Maybe a
           at n _ | n < 0  = Nothing
@@ -159,7 +161,7 @@ instance Association [a] where
 instance Ord k => Association (Map k v) where
   type AssocIndex (Map k v) = k
   type AssocElem (Map k v) = v
-  element k = reference (liftMS . Map.lookup k)
+  element k = reference (morph . Map.lookup k)
                         (\v -> return . insert k v) 
                         (\trf m -> case Map.lookup k m of Just x -> trf x >>= \x' -> return (insert k x' m)
                                                           Nothing -> return m)
@@ -173,10 +175,10 @@ data Console = Console
 -- is reading from the console.
 consoleLine :: Simple IOLens Console String
 consoleLine 
-  = reference (const (liftMS getLine)) 
-              (\str -> const (liftMS (putStrLn str) >> return Console)) 
-              (\f -> const (liftMS getLine >>= f 
-                                           >>= liftMS . putStrLn 
+  = reference (const (morph getLine)) 
+              (\str -> const (morph (putStrLn str) >> return Console)) 
+              (\f -> const (morph getLine >>= f 
+                                           >>= morph . putStrLn 
                                            >> return Console))
 
                
@@ -185,10 +187,10 @@ consoleLine
 -- value, one may block and can corrupt the following updates.
 --
 -- Reads and updates are done in sequence, always using consistent data.
-mvar :: ( Functor w, Applicative w, Monad w, MonadBaseControl IO w
-        , Functor r, Applicative r, Monad r, MonadBase IO r)
+mvar :: ( Functor w, Applicative w, Monad w, IO !<! w, MonadBaseControl IO w
+        , Functor r, Applicative r, Monad r, IO !<! r)
          => Simple (Reference w r) (MVar a) a
-mvar = reference readMVar
+mvar = reference (morph . (readMVar :: MVar a -> IO a))
                  (\newVal mv -> do empty <- isEmptyMVar mv
                                    when empty (swapMVar mv newVal >> return ())
                                    return mv)
@@ -196,21 +198,21 @@ mvar = reference readMVar
 
 
 chan :: Simple IOLens (Chan a) a
-chan = reference (liftMS . readChan)
-                 (\a ch -> liftMS (writeChan ch a) >> return ch)
-                 (\trf ch -> liftMS (readChan ch) >>= trf
-                               >>= liftMS . writeChan ch >> return ch)
+chan = reference (morph . readChan)
+                 (\a ch -> morph (writeChan ch a) >> return ch)
+                 (\trf ch -> morph (readChan ch) >>= trf
+                               >>= morph . writeChan ch >> return ch)
        
 -- | Access the value of an IORef. 
 ioref :: Simple IOLens (IORef a) a
-ioref = reference (liftMS . readIORef)
-                  (\v ior -> liftMS (atomicWriteIORef ior v) >> return ior) 
-                  (\trf ior -> liftMS (readIORef ior)
-                                 >>= trf >>= liftMS . writeIORef ior >> return ior) 
+ioref = reference (morph . readIORef)
+                  (\v ior -> morph (atomicWriteIORef ior v) >> return ior) 
+                  (\trf ior -> morph (readIORef ior)
+                                 >>= trf >>= morph . writeIORef ior >> return ior) 
         
 -- | Access the state inside a state monad (from any context).
-state :: ( Functor w, Applicative w, Monad w, MonadState s w
-         , Functor r, Applicative r, Monad r, MonadState s r ) 
-      => Simple (Reference w r) a s
-state = reference (const get) (\a s -> put a >> return s) 
-                  (\trf s -> (get >>= trf >> return s))   
+state :: forall s m a . Monad m => Simple (StateLens s m) a s
+state = reference (morph . const get') (\a s -> morph (put' a) >> return s) 
+                  (\trf s -> (morph get' >>= trf >> return s))
+  where put' = put :: s -> StateT s m ()
+        get' = get :: StateT s m s

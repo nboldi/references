@@ -62,11 +62,11 @@ test11 :: [Int]
 test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 
 test12 :: Writer [String] (Int,Int)
-test12 = (both :: Simple (TravWriter' [String] Identity) (Int,Int) Int) 
+test12 = (both :: Simple (WriterTraversal' [String] Identity) (Int,Int) Int) 
   #| (tell . (:[]) . show) $ (0, 1)
 
 instance Monoid s => [] !<! (ListT (Writer s)) where
-  liftMS = ListT . return 
+  morph = ListT . return 
          
 data Dept = Dept { _manager :: Employee
                  , _staff :: [Employee] 
@@ -92,7 +92,7 @@ salary = fromLens _salary
 dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "Menelaos" 40000]
 
 test13 :: Writer (Sum Float) Dept
-test13 = let salaryOfEmployees :: Simple (TravWriter' (Sum Float) Identity) Dept Float
+test13 = let salaryOfEmployees :: Simple (WriterTraversal' (Sum Float) Identity) Dept Float
              salaryOfEmployees = (staff&traverse &+& manager)&salary
           in salaryOfEmployees #| tell . Sum
                $ manager&name .- ("Mr. "++)
@@ -161,9 +161,9 @@ example2 = do consoleLine != "What is your name?" $ Console
 
 example3 = let logger :: String -> Simple IOLens a a
                logger n = referenceWithClose
-                            return (const (liftMS $ putStrLn $ n ++ ": read done"))
-                            (\b _ -> return b) (const (liftMS $ putStrLn $ n ++ ": write done"))
-                            (\trf a -> trf a) (const (liftMS $ putStrLn $ n ++ ": update done"))
+                            return (const (morph $ putStrLn $ n ++ ": read done"))
+                            (\b _ -> return b) (const (morph $ putStrLn $ n ++ ": write done"))
+                            (\trf a -> trf a) (const (morph $ putStrLn $ n ++ ": update done"))
                loggedConsole = logger "a" & logger "b" & consoleLine
            in do loggedConsole != "Enter 'x'" $ Console
                  x <- read <$> (Console ^! loggedConsole) :: IO Int
@@ -171,19 +171,19 @@ example3 = let logger :: String -> Simple IOLens a a
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
 
 -- | Currently not thread-safe
--- fileRef :: Simple IOPartial FilePath String
--- fileRef = reference (\fp -> do exist <- liftMS (doesFileExist fp) 
---                                if exist then liftMS (withFileLock fp Shared 
---                                                        $ const $ readFile fp)
---                                         else liftMS Nothing)
---                     (\str fp -> liftMS (withFileLock fp Exclusive 
---                                           $ const $ writeFile fp str) >> return fp) 
---                     (\trf fp -> do exist <- liftMS (doesFileExist fp)
---                                    when exist (do lock <- liftMS (lockFile fp Exclusive) 
---                                                   liftMS (readFile fp) >>= trf 
---                                                      >>= liftMS . writeFile fp
---                                                   liftMS (unlockFile lock))
---                                    return fp)
+fileRef :: Simple IOPartial FilePath String
+fileRef = reference (\fp -> do exist <- morph (doesFileExist fp) 
+                               if exist then morph (withFileLock fp Shared 
+                                                       $ const $ readFile fp)
+                                        else morph Nothing)
+                    (\str fp -> morph (withFileLock fp Exclusive 
+                                          $ const $ writeFile fp str) >> return fp) 
+                    (\trf fp -> do exist <- morph (doesFileExist fp)
+                                   when exist (do lock <- morph (lockFile fp Exclusive) 
+                                                  morph (readFile fp) >>= trf 
+                                                     >>= morph . writeFile fp
+                                                  morph (unlockFile lock))
+                                   return fp)
 
 
 tests = TestList [ TestCase $ assertEqual "test1" Nothing test1

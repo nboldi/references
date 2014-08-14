@@ -1,9 +1,13 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
-{-# LANGUAGE LambdaCase, DoAndIfThenElse #-}
+{-# LANGUAGE LambdaCase, DoAndIfThenElse, TypeOperators #-}
 
 -- | A module for making connections between different monads.
-module Control.Reference.TH.Monad (makeMonadRepr) where
+module Control.Reference.TH.Monad
+       (makeMonadRepr
+       , ToQType(..)
+       , ToQExp(..)
+       ) where
 
 import Control.Reference.Representation
 import Control.Monad.State
@@ -11,16 +15,20 @@ import Data.List
 import Data.Maybe
 import Language.Haskell.TH
 
+-- | A type name or a type expression, that can be converted
+-- into a type inside 'Q'.
 class ToQType t where
   toQType :: t -> Q Type
-  
+
 instance ToQType Type where 
   toQType = return    
 instance ToQType (Q Type) where 
   toQType = id  
 instance ToQType Name where 
   toQType = return . ConT  
-  
+
+-- | A variable or function name or an expression, that can be converted
+-- into an expression inside 'Q'.
 class ToQExp t where
   toQExp :: t -> Q Exp
   
@@ -33,8 +41,8 @@ type IGState m a = StateT InstanceGenState m a
   
 data InstanceGenState = IGS { subsumeInsts :: [(Type, Type)] } deriving Show
    
--- | Creates 'MonadSubsume' and 'MonadCompose' instances that can be inferred from a single subsume 
--- connection and all instances declared so far.
+-- | Creates '!<!' instances from reflectivity, and transitivity of the relation.
+-- Uses data from all instances declared so far.
 makeMonadRepr :: (ToQType t1, ToQType t2, ToQExp e) 
               => t1 -> t2 -> e -> Q [Dec]
 makeMonadRepr m1' m2' e'
@@ -43,8 +51,6 @@ makeMonadRepr m1' m2' e'
        let subsumes = map (\(InstanceD _ (AppT (AppT _ below) above) _) -> (below, above))
                           subsumeInstances
        evalStateT (makeMonadRepr' t1 t2 e) (IGS subsumes)
-       -- runIO $ mapM (putStrLn . pprint) res
-
 
 makeMonadRepr' :: Type -> Type -> Exp -> IGState Q [Dec]
 makeMonadRepr' t1 t2 e
@@ -70,7 +76,7 @@ collectedSubsumes t
        
 liftMSCasted :: Type -> Type -> Name -> Exp
 liftMSCasted t1 t2 n 
-  = VarE 'liftMS `SigE` (ForallT [PlainTV n] [] $ ArrowT `AppT` (t1 `AppT` VarT n) `AppT` (t2 `AppT` VarT n))
+  = VarE 'morph `SigE` (ForallT [PlainTV n] [] $ ArrowT `AppT` (t1 `AppT` VarT n) `AppT` (t2 `AppT` VarT n))
        
 (@.@) :: Exp -> Exp -> Exp
 a @.@ b = InfixE (Just a) (VarE (mkName ".")) (Just b)
@@ -83,7 +89,7 @@ generateSubsume m1 m2 e
             x <- lift (newName "x")
             return $ Just $ 
               InstanceD [] (ConT ''(!<!) `AppT` m1 `AppT` m2)
-                        [ FunD 'liftMS [Clause [] (NormalB (e x)) []] ]
+                        [ FunD 'morph [Clause [] (NormalB (e x)) []] ]
        else return Nothing
 
 

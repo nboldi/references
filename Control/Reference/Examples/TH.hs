@@ -1,18 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LiberalTypeSynonyms, FlexibleContexts #-}
 
--- | An example module that adds references for Template Haskell
--- These references are used to create the TH functions that generate
--- references.
--- Because of that it does not import 'Control.Reference' frontend module.
+-- | An example module that adds references for Template Haskell.
+-- These references are used to create the TH functions that generate references.
 module Control.Reference.Examples.TH where
 
-import Language.Haskell.TH
-
-import Control.Reference.Representation
-import Control.Reference.Predefined
+import Control.Reference.InternalInterface
 
 import Control.Applicative
+import Language.Haskell.TH
 
 -- | Reference all type variables inside a type
 typeVariables :: Simple Traversal Type Name
@@ -33,10 +29,12 @@ typeVarName = lens (\case PlainTV n -> n; KindedTV n _ -> n)
 nameBaseStr :: Simple Lens Name String
 nameBaseStr = iso nameBase mkName
 
+-- | Reference the record fields in a constructor.
 recFields :: Simple Partial Con [(Name, Strict, Type)]
 recFields = partial (\case (RecC name flds) -> Right (flds, \flds' -> RecC name flds')
                            c -> Left c)
 
+-- | Reference all fields (data members) in a constructor.
 conFields :: Simple Lens Con [(Strict, Type)]
 conFields = lens getFlds setFlds
   where getFlds (NormalC _ flds) = flds	
@@ -49,6 +47,7 @@ conFields = lens getFlds setFlds
         setFlds [fld1',fld2'] (InfixC _ n _) = InfixC fld1' n fld2'
         setFlds flds' (ForallC bind ctx c) = ForallC bind ctx (setFlds flds' c)
 
+-- | Reference the name of the constructor
 conName :: Simple Lens Con Name
 conName = lens getName setName
   where getName (NormalC n _)   = n	
@@ -61,6 +60,8 @@ conName = lens getName setName
         setName n' (InfixC fld1 _ fld2) = InfixC fld1 n' fld2
         setName n' (ForallC bind ctx c) = ForallC bind ctx (setName n' c)
 
+-- | Access a function application as a list of expressions with the function application
+-- at the head of the list and the arguments on it's tail.
 funApplication :: Simple Lens Exp [Exp]
 funApplication = lens (unfoldExpr []) (\ls _ -> foldl1 AppE ls)
   where unfoldExpr ls (AppE l r) = unfoldExpr (r : ls) l

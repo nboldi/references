@@ -8,6 +8,9 @@ description:         Similar to lenses, references provide access to part of a s
                      view on the structure. References are considered to be a generalization of those,
                      but the come with a different representation. The main purpose of references is to 
                      have accessors that can cooperate with monads, especially IO.
+
+		     
+
 homepage:            https://github.com/lazac/references
 license:             BSD3
 license-file:        LICENSE

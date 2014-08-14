@@ -1,9 +1,12 @@
+{- LANGUAGE CPP -}
 {-# LANGUAGE KindSignatures, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
 
--- | This module declares the representation and basic classes of references.
 
+-- | This module declares the representation and basic classes of references.
+--
+-- This module should not be imported directly.
 
 -- TODO: references that can be flipped (isomorphisms and prisms)
 -- TODO: indexed traversals
@@ -12,6 +15,7 @@ module Control.Reference.Representation where
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Base
 import Control.Monad.State (StateT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
@@ -35,7 +39,7 @@ import Control.Monad.Trans.Maybe (MaybeT(..))
 -- 2) Putting back what you got doesn't change anything:
 --
 -- @
--- 'refGet' l return a >>= \b -> 'refSet' l b s ≡ s
+-- 'refGet' l return a >>= \\b -> 'refSet' l b s ≡ s
 -- @
 --
 -- 3) Setting twice is the same as setting once:
@@ -49,20 +53,26 @@ import Control.Monad.Trans.Maybe (MaybeT(..))
 -- 4) Updating something is the same as getting and then setting (if the reader and writer monads are the same, or one can be converted into the other):
 --
 -- @
--- 'refGet' l a >>= f >>= \b -> 'refSet' l b s ≡ 'refUpdate' l f s
+-- 'refGet' l a >>= f >>= \\b -> 'refSet' l b s ≡ 'refUpdate' l f s
 -- @
 --
 -- This has some consequences. For example @lensUpdate l id = return@.
 --
--- == Type arguments
---   ['wm'] Writer monad, controls how the value can be reassembled when the part is changed. 
---          Usually 'Identity'.
---   ['rm'] Reader monad. Controls how part of the value can be accessed. 
---          See 'Lens', 'Partial' and 'Traversal'
---   ['s'] The original context.
---   ['t'] The context after replacing the accessed part to something of type 'b'.
---   ['a'] The accessed part.
---   ['b'] The accessed part can be changed to this.
+-- == Type arguments of 'Reference'
+--   ['w'] Writer monad, controls how the value can be reassembled when the part is changed.
+--          See differences between 'Lens', 'IOLens' and 'StateLens'
+--   ['r'] Reader monad. Controls how part of the value can be asked. 
+--          See differences between 'Lens', 'Partial' and 'Traversal'
+--   ['s'] The type of the original context.
+--   ['t'] The after replacing the accessed part to something of type 'b'
+--          the type of the context changes to 't'.
+--   ['a'] The type of the accessed part.
+--   ['b'] The accessed part can be changed to something of this type.
+--
+-- Usually 's' and 'b' determines 't', 't' and 'a' determines 's'.
+--
+-- The reader monad usually have more information (@'w' !<! 'r'@).
+--
 
 data Reference w r s t a b
   = Reference { refGet    :: forall x . (a -> r x) -> s -> r x      
@@ -78,9 +88,9 @@ data Reference w r s t a b
 -- | Creates a reference.
 reference :: ( Functor w, Applicative w, Monad w
              , Functor r, Applicative r, Monad r ) 
-          => (s -> r a) 
-          -> (b -> s -> w t)
-          -> ((a -> w b) -> s -> w t) 
+          => (s -> r a) -- ^ Getter
+          -> (b -> s -> w t) -- ^ Setter
+          -> ((a -> w b) -> s -> w t) -- ^ Updater
           -> Reference w r s t a b
 reference gets = Reference (\f s -> gets s >>= f)
 
@@ -100,30 +110,38 @@ referenceWithClose get getClose set setClose update updateClose
   = Reference (\f s -> (get s >>= f) <* getClose s)
               (\b s -> set b s <* setClose s)
               (\trf s -> update trf s <* updateClose s)
-                 
+
+-- | A simple class to enforce that both reader and writer semantics of the reference are 'Monad's
+-- (as well as 'Applicative's and 'Functor's)
+class ( Functor w, Applicative w, Monad w
+      , Functor r, Applicative r, Monad r
+      ) => RefMonads w r where
+instance ( Functor w, Applicative w, Monad w
+         , Functor r, Applicative r, Monad r )
+         => RefMonads w r where
+
 -- | A monomorph 'Lens', 'Traversal', 'Partial', etc... 
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
-              
--- | A 'Reference' that CAN access a part of data that exists in the context.
+
+-- * Pure references
+                    
+-- | A 'Reference' that can access a part of data that exists in the context.
 -- Every well-formed 'Reference' is a 'Lens'.
 type Lens s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w
-                 , Functor r, Applicative r, Monad r )
-    => Reference w r s t a b
+  = forall w r . RefMonads w r => Reference w r s t a b
 
--- | Strict lens. A 'Reference' that MUST access a part of data that surely exists
+-- | Strict lens. A 'Reference' that must access a part of data that surely exists
 -- in the context.
 type Lens' = Reference Identity Identity
 
 -- | A reference that may not have the accessed element, and that can
 -- look for the accessed element in multiple locations.
 type RefPlus s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w
-                 , Functor r, Applicative r, MonadPlus r )
+  = forall w r . ( RefMonads w r, MonadPlus r )
     => Reference w r s t a b
 
--- | Partial lens. A 'Reference' that CAN access data that may not exist in the context.
+-- | Partial lens. A 'Reference' that can access data that may not exist in the context.
 -- Every lens is a partial lens.
 --
 -- Any reference that is a partial lens should only perform the action given to its
@@ -134,77 +152,135 @@ type Partial s t a b
                  , Functor r, Applicative r, MonadPlus r, Maybe !<! r )
     => Reference w r s t a b
 
--- | Strict partial lens. A 'Reference' that MUST access data that may not exist
+-- | Strict partial lens. A 'Reference' that must access data that may not exist
 -- in the context.
 type Partial' = Reference Identity Maybe
 
--- | A reference that CAN access data that is available in a number of instances
+-- | A reference that can access data that is available in a number of instances
 -- inside the contexts.
 -- 
 -- Any reference that is a 'Traversal' should perform the action given to its
 -- updater in the exactly the same number of times that is the number of the values
 -- returned by it's 'getRef' function.
 type Traversal s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w
-                 , Functor r, Applicative r, MonadPlus r, [] !<! r )
+  = forall w r . (RefMonads w r, MonadPlus r, [] !<! r )
     => Reference w r s t a b
 
 -- | Strict traversal. A reference that must access data that is available in a
 -- number of instances inside the context.
 type Traversal' = Reference Identity []
 
--- | A reference that CAN access mutable data.
+-- * References for 'IO'
+
+-- | A reference that can access mutable data.
 type IOLens s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
-                 , Functor r, Applicative r, Monad r, IO !<! r )
+  = forall w r . ( RefMonads w r, IO !<! w, IO !<! r )
     => Reference w r s t a b
 
--- | A reference that MUST access mutable data that is available in the context.
+-- | A reference that must access mutable data that is available in the context.
 type IOLens' = Reference IO IO
 
--- | A reference that CAN access mutable data that may not exist in the context.
+-- | A reference that can access mutable data that may not exist in the context.
 type IOPartial s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
-                 , Functor r, Applicative r, MonadPlus r, IO !<! r, Maybe !<! r )
+  = forall w r . (RefMonads w r, IO !<! w, MonadPlus r, IO !<! r, Maybe !<! r )
     => Reference w r s t a b
 
--- | A reference that MUST access mutable data that may not exist in the context.
+-- | A reference that must access mutable data that may not exist in the context.
 type IOPartial' = Reference IO (MaybeT IO)
     
 type IOTraversal s t a b
-  = forall w r . ( Functor w, Applicative w, Monad w, IO !<! w
-                 , Functor r, Applicative r, MonadPlus r, IO !<! r, [] !<! r )
+  = forall w r . ( RefMonads w r, IO !<! w, MonadPlus r, IO !<! r, [] !<! r )
     => Reference w r s t a b
 
--- | A reference that CAN access mutable data that is available in a number of
+-- | A reference that can access mutable data that is available in a number of
 -- instances inside the contexts.
 type IOTraversal' = Reference IO (ListT IO)
 
+-- * References for 'StateT'
+
+-- | A reference that can access a value inside a 'StateT' transformed monad.
+type StateLens st m s t a b
+  = forall w r . ( RefMonads w r, StateT st m !<! w, StateT st m !<! r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside a 'StateT' transformed monad.
 type StateLens' s m = Reference (StateT s m) (StateT s m)
+
+-- | A reference that can access a value inside a 'StateT' transformed monad
+-- that may not exist.
+type StatePartial st m s t a b
+  = forall w r . ( RefMonads w r, StateT st m !<! w, MonadPlus r, Maybe !<! r, StateT st m !<! r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside a 'StateT' transformed monad
+-- that may not exist.
 type StatePartial' s m = Reference (StateT s m) (MaybeT (StateT s m))
+
+-- | A reference that can access a value inside a 'StateT' transformed monad
+-- that may exist in multiple instances.
+type StateTraversal st m s t a b
+  = forall w r . ( RefMonads w r, StateT st m !<! w, MonadPlus r, [] !<! r, StateT st m !<! r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside a 'StateT' transformed monad
+-- that may exist in multiple instances.
 type StateTraversal' s m = Reference (StateT s m) (ListT (StateT s m))
 
-type RefWriter' s m = Reference (WriterT s m) (WriterT s m)
-type PartWriter' s m = Reference (WriterT s m) (MaybeT (WriterT s m))
-type TravWriter' s m = Reference (WriterT s m) (ListT (WriterT s m))
-               
--- | States that 'm1' can be represented with 'm2'
+-- * References for 'WriterT'
+
+-- | A reference that can access a value inside a 'WriterT' transformed monad.
+type WriterLens st m s t a b
+  = forall w r . ( RefMonads w r, WriterT st m !<! w, WriterT st m !<! r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside a 'WriterT' transformed monad.
+type WriterLens' s m = Reference (WriterT s m) (WriterT s m)
+
+-- | A reference that can access a value inside a 'WriterT' transformed monad
+-- that may not exist.
+type WriterPartial st m s t a b
+  = forall w r . ( RefMonads w r, WriterT st m !<! w, MonadPlus r, Maybe !<! r, WriterT st m !<! r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside a 'WriteT' transformed monad
+-- that may not exist.
+type WriterPartial' s m = Reference (WriterT s m) (MaybeT (WriterT s m))
+
+-- | A reference that can access a value inside a 'WriteT' transformed monad
+-- that may exist in multiple instances.
+type WriterTraversal st m s t a b
+  = forall w r . ( RefMonads w r, WriterT st m !<! w, MonadPlus r, [] !<! r, WriterT st m !<! r )
+    => Reference w r s t a b
+    
+-- | A reference that must access a value inside a 'WriteT' transformed monad
+-- that may exist in multiple instances.
+type WriterTraversal' s m = Reference (WriterT s m) (ListT (WriterT s m))
+              
+-- | States that 'm1' can be represented with 'm2'.
+-- That is because 'm2' contains more infromation than 'm1'.
+--
+-- The '!<!' relation defines a natural transformation from 'm1' to 'm2'
+-- that keeps the following laws:
+--
+-- > morph (return x)  =  return x
+-- > morph (m >>= f)   =  morph m >>= morph . f
+-- 
 class (m1 :: * -> *) !<! (m2 :: * -> *) where
   -- | Lifts the first monad into the second.
-  liftMS :: m1 a -> m2 a
+  morph :: m1 a -> m2 a
 
 instance IO !<! (MaybeT IO) where
-  liftMS = MaybeT . liftM Just
+  morph = MaybeT . liftM Just
 
 instance IO !<! (ListT IO) where
-  liftMS = ListT . liftM (:[])
+  morph = ListT . liftM (:[])
 
 instance IO !<! IO where
-  liftMS = id
+  morph = id
 
 instance Identity !<! Maybe where
-  liftMS = return . runIdentity
+  morph = return . runIdentity
 
 instance Identity !<! [] where
-  liftMS = return . runIdentity
+  morph = return . runIdentity
   
