@@ -41,13 +41,13 @@ type IGState m a = StateT InstanceGenState m a
   
 data InstanceGenState = IGS { subsumeInsts :: [(Type, Type)] } deriving Show
    
--- | Creates '!<!' instances from reflectivity, and transitivity of the relation.
+-- | Creates 'MMorph' instances from reflectivity, and transitivity of the relation.
 -- Uses data from all instances declared so far.
 makeMonadRepr :: (ToQType t1, ToQType t2, ToQExp e) 
               => t1 -> t2 -> e -> Q [Dec]
 makeMonadRepr m1' m2' e'
   = do t1 <- toQType m1'; t2 <- toQType m2'; e <- toQExp e' 
-       ClassI _ subsumeInstances <- reify ''(!<!)
+       ClassI _ subsumeInstances <- reify ''MMorph
        let subsumes = map (\(InstanceD _ (AppT (AppT _ below) above) _) -> (below, above))
                           subsumeInstances
        evalStateT (makeMonadRepr' t1 t2 e) (IGS subsumes)
@@ -88,7 +88,7 @@ generateSubsume m1 m2 e
          do modify $ \st -> st { subsumeInsts = (m1,m2) : subsumeInsts st }
             x <- lift (newName "x")
             return $ Just $ 
-              InstanceD [] (ConT ''(!<!) `AppT` m1 `AppT` m2)
+              InstanceD [] (ConT ''MMorph `AppT` m1 `AppT` m2)
                         [ FunD 'morph [Clause [] (NormalB (e x)) []] ]
        else return Nothing
 

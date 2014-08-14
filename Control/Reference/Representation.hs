@@ -71,7 +71,7 @@ import Control.Monad.Trans.Maybe (MaybeT(..))
 --
 -- Usually 's' and 'b' determines 't', 't' and 'a' determines 's'.
 --
--- The reader monad usually have more information (@'w' !<! 'r'@).
+-- The reader monad usually have more information (@MMorph 'w' 'r'@).
 --
 
 data Reference w r s t a b
@@ -149,7 +149,7 @@ type RefPlus s t a b
 -- the lifted form of 'Nothing').
 type Partial s t a b
   = forall w r . ( Functor w, Applicative w, Monad w
-                 , Functor r, Applicative r, MonadPlus r, Maybe !<! r )
+                 , Functor r, Applicative r, MonadPlus r, MMorph Maybe r )
     => Reference w r s t a b
 
 -- | Strict partial lens. A 'Reference' that must access data that may not exist
@@ -163,7 +163,7 @@ type Partial' = Reference Identity Maybe
 -- updater in the exactly the same number of times that is the number of the values
 -- returned by it's 'getRef' function.
 type Traversal s t a b
-  = forall w r . (RefMonads w r, MonadPlus r, [] !<! r )
+  = forall w r . (RefMonads w r, MonadPlus r, MMorph [] r )
     => Reference w r s t a b
 
 -- | Strict traversal. A reference that must access data that is available in a
@@ -174,7 +174,7 @@ type Traversal' = Reference Identity []
 
 -- | A reference that can access mutable data.
 type IOLens s t a b
-  = forall w r . ( RefMonads w r, IO !<! w, IO !<! r )
+  = forall w r . ( RefMonads w r, MMorph IO w, MMorph IO r )
     => Reference w r s t a b
 
 -- | A reference that must access mutable data that is available in the context.
@@ -182,14 +182,14 @@ type IOLens' = Reference IO IO
 
 -- | A reference that can access mutable data that may not exist in the context.
 type IOPartial s t a b
-  = forall w r . (RefMonads w r, IO !<! w, MonadPlus r, IO !<! r, Maybe !<! r )
+  = forall w r . (RefMonads w r, MMorph IO w, MonadPlus r, MMorph IO r, MMorph Maybe r )
     => Reference w r s t a b
 
 -- | A reference that must access mutable data that may not exist in the context.
 type IOPartial' = Reference IO (MaybeT IO)
     
 type IOTraversal s t a b
-  = forall w r . ( RefMonads w r, IO !<! w, MonadPlus r, IO !<! r, [] !<! r )
+  = forall w r . ( RefMonads w r, MMorph IO w, MonadPlus r, MMorph IO r, MMorph [] r )
     => Reference w r s t a b
 
 -- | A reference that can access mutable data that is available in a number of
@@ -200,7 +200,7 @@ type IOTraversal' = Reference IO (ListT IO)
 
 -- | A reference that can access a value inside a 'StateT' transformed monad.
 type StateLens st m s t a b
-  = forall w r . ( RefMonads w r, StateT st m !<! w, StateT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MMorph (StateT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'StateT' transformed monad.
@@ -209,7 +209,7 @@ type StateLens' s m = Reference (StateT s m) (StateT s m)
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may not exist.
 type StatePartial st m s t a b
-  = forall w r . ( RefMonads w r, StateT st m !<! w, MonadPlus r, Maybe !<! r, StateT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph (StateT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'StateT' transformed monad
@@ -219,7 +219,7 @@ type StatePartial' s m = Reference (StateT s m) (MaybeT (StateT s m))
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may exist in multiple instances.
 type StateTraversal st m s t a b
-  = forall w r . ( RefMonads w r, StateT st m !<! w, MonadPlus r, [] !<! r, StateT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph [] r, MMorph (StateT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'StateT' transformed monad
@@ -230,7 +230,7 @@ type StateTraversal' s m = Reference (StateT s m) (ListT (StateT s m))
 
 -- | A reference that can access a value inside a 'WriterT' transformed monad.
 type WriterLens st m s t a b
-  = forall w r . ( RefMonads w r, WriterT st m !<! w, WriterT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MMorph (WriterT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'WriterT' transformed monad.
@@ -239,7 +239,7 @@ type WriterLens' s m = Reference (WriterT s m) (WriterT s m)
 -- | A reference that can access a value inside a 'WriterT' transformed monad
 -- that may not exist.
 type WriterPartial st m s t a b
-  = forall w r . ( RefMonads w r, WriterT st m !<! w, MonadPlus r, Maybe !<! r, WriterT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph (WriterT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'WriteT' transformed monad
@@ -249,7 +249,7 @@ type WriterPartial' s m = Reference (WriterT s m) (MaybeT (WriterT s m))
 -- | A reference that can access a value inside a 'WriteT' transformed monad
 -- that may exist in multiple instances.
 type WriterTraversal st m s t a b
-  = forall w r . ( RefMonads w r, WriterT st m !<! w, MonadPlus r, [] !<! r, WriterT st m !<! r )
+  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph [] r, MMorph (WriterT st m) r )
     => Reference w r s t a b
     
 -- | A reference that must access a value inside a 'WriteT' transformed monad
@@ -259,28 +259,30 @@ type WriterTraversal' s m = Reference (WriterT s m) (ListT (WriterT s m))
 -- | States that 'm1' can be represented with 'm2'.
 -- That is because 'm2' contains more infromation than 'm1'.
 --
--- The '!<!' relation defines a natural transformation from 'm1' to 'm2'
+-- The 'MMorph' relation defines a natural transformation from 'm1' to 'm2'
 -- that keeps the following laws:
 --
 -- > morph (return x)  =  return x
 -- > morph (m >>= f)   =  morph m >>= morph . f
 -- 
-class (m1 :: * -> *) !<! (m2 :: * -> *) where
+-- It is a reflexive and transitive relation.
+--
+class MMorph (m1 :: * -> *) (m2 :: * -> *) where
   -- | Lifts the first monad into the second.
   morph :: m1 a -> m2 a
 
-instance IO !<! (MaybeT IO) where
+instance MMorph IO (MaybeT IO) where
   morph = MaybeT . liftM Just
 
-instance IO !<! (ListT IO) where
+instance MMorph IO (ListT IO) where
   morph = ListT . liftM (:[])
 
-instance IO !<! IO where
+instance MMorph IO IO where
   morph = id
 
-instance Identity !<! Maybe where
+instance MMorph Identity Maybe where
   morph = return . runIdentity
 
-instance Identity !<! [] where
+instance MMorph Identity [] where
   morph = return . runIdentity
   

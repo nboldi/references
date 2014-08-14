@@ -65,7 +65,7 @@ test12 :: Writer [String] (Int,Int)
 test12 = (both :: Simple (WriterTraversal' [String] Identity) (Int,Int) Int) 
   #| (tell . (:[]) . show) $ (0, 1)
 
-instance Monoid s => [] !<! (ListT (Writer s)) where
+instance Monoid s => MMorph [] (ListT (Writer s)) where
   morph = ListT . return 
          
 data Dept = Dept { _manager :: Employee
@@ -170,7 +170,7 @@ example3 = let logger :: String -> Simple IOLens a a
                  loggedConsole != "Enter 'y'" $ Console
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
 
--- | Currently not thread-safe
+-- | Reference to the contents of the file. Currently not thread-safe
 fileRef :: Simple IOPartial FilePath String
 fileRef = reference (\fp -> do exist <- morph (doesFileExist fp) 
                                if exist then morph (withFileLock fp Shared 

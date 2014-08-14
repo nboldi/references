@@ -9,7 +9,7 @@
 
 -- | Predefined references for commonly used data structures.
 --
--- When defining lenses one should use the more general types. For instance 'Lens' instead of the more strict 'Lens''. This way references with different @m1@ and @m2@ monads can be combined if there is a monad @m'@ for @m1 !<! m'@ and @m2 !<! m'@.
+-- When defining lenses one should use the more general types. For instance 'Lens' instead of the more strict 'Lens''. This way references with different @m1@ and @m2@ monads can be combined if there is a monad @m'@ for @MMorph m1 m'@ and @MMorph m2 m'@.
 module Control.Reference.Predefined where
 
 import Control.Reference.Representation
@@ -187,8 +187,8 @@ consoleLine
 -- value, one may block and can corrupt the following updates.
 --
 -- Reads and updates are done in sequence, always using consistent data.
-mvar :: ( Functor w, Applicative w, Monad w, IO !<! w, MonadBaseControl IO w
-        , Functor r, Applicative r, Monad r, IO !<! r)
+mvar :: ( Functor w, Applicative w, Monad w, MMorph IO w, MonadBaseControl IO w
+        , Functor r, Applicative r, Monad r, MMorph IO r)
          => Simple (Reference w r) (MVar a) a
 mvar = reference (morph . (readMVar :: MVar a -> IO a))
                  (\newVal mv -> do empty <- isEmptyMVar mv

@@ -203,8 +203,8 @@ bindAndRebuild con
               , bindVars
               )
 
-instance [] !<! (ListT (StateT s Q)) where
+instance MMorph [] (ListT (StateT s Q)) where
   morph = ListT . return
 
-instance Monad m => StateT s m !<! ListT (StateT s m) where
+instance Monad m => MMorph (StateT s m) (ListT (StateT s m)) where
   morph = lift

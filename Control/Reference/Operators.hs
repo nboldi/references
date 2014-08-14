@@ -233,7 +233,7 @@ infixl 6 &
 -- Addition is commutative only if we do not consider the order of the results from a get,
 -- or the order in which monadic actions are performed.
 --
-(&+&) :: (Monad w, MonadPlus r, [] !<! r)
+(&+&) :: (Monad w, MonadPlus r, MMorph [] r)
          => Reference w r s s a a -> Reference w r s s a a
          -> Reference w r s s a a
 l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a) 

@@ -1,7 +1,7 @@
 {-# OPTIONS_HADDOCK not-home #-}
 
 -- | An interface with references that can be used internally while generating instances
--- for '!<!' and tuple lens classes.
+-- for 'MMorph' and tuple lens classes.
 --
 -- Only the public parts of "Control.Reference.Representation" are exported.
 --
@@ -17,7 +17,7 @@ module Control.Reference.InternalInterface
        , StateLens', StatePartial', StateTraversal'
        , WriterLens, WriterPartial, WriterTraversal
        , WriterLens', WriterPartial', WriterTraversal'
-       , (!<!)(..)
+       , MMorph(..)
        , module Control.Reference.Operators
        , module Control.Reference.Predefined
        ) where
