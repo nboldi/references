@@ -1,5 +1,5 @@
 name:                references
-version:             0.2.0.0
+version:             0.2.1.0
 synopsis:            Generalization of lenses, folds and traversals to handle monads and addition.
 description:         References can read, write or update parts of the data.
 		     They are first-class values, can be passed in functions, transformed, combined.
@@ -61,7 +61,7 @@ library
   exposed-modules:     Control.Reference
                      , Control.Reference.TH.MonadInstances
                      , Control.Reference.TH.Monad
-                     , Control.Reference.TH.Generate
+                     , Control.Reference.TH.Records
                      , Control.Reference.TH.Tuple
                      , Control.Reference.Examples.TH
                      , Control.Reference.Representation

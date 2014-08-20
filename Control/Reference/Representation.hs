@@ -1,7 +1,8 @@
 {- LANGUAGE CPP -}
 {-# LANGUAGE KindSignatures, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
-{-# LANGUAGE FlexibleInstances, FlexibleContexts, MultiParamTypeClasses, TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances, FlexibleContexts, UndecidableInstances
+           , MultiParamTypeClasses, TypeFamilies #-}
 
 
 -- | This module declares the representation and basic classes of references.
@@ -21,6 +22,7 @@ import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
 import Control.Monad.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
+import Control.Monad.Trans.Control (MonadBaseControl)
 
 -- | A reference is an accessor to a part or different view of some data. 
 -- The referenc has a separate getter, setter and updater. In some cases,
@@ -172,9 +174,15 @@ type Traversal' = Reference Identity []
 
 -- * References for 'IO'
 
+class ( MMorph IO w, MMorph IO r
+      , MonadBaseControl IO w, MonadBaseControl IO r ) => IOMonads w r where
+    
+instance ( MMorph IO w, MMorph IO r
+         , MonadBaseControl IO w, MonadBaseControl IO r ) => IOMonads w r where
+
 -- | A reference that can access mutable data.
 type IOLens s t a b
-  = forall w r . ( RefMonads w r, MMorph IO w, MMorph IO r )
+  = forall w r . ( RefMonads w r, IOMonads w r )
     => Reference w r s t a b
 
 -- | A reference that must access mutable data that is available in the context.
@@ -182,14 +190,14 @@ type IOLens' = Reference IO IO
 
 -- | A reference that can access mutable data that may not exist in the context.
 type IOPartial s t a b
-  = forall w r . (RefMonads w r, MMorph IO w, MonadPlus r, MMorph IO r, MMorph Maybe r )
+  = forall w r . (RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r )
     => Reference w r s t a b
 
 -- | A reference that must access mutable data that may not exist in the context.
 type IOPartial' = Reference IO (MaybeT IO)
     
 type IOTraversal s t a b
-  = forall w r . ( RefMonads w r, MMorph IO w, MonadPlus r, MMorph IO r, MMorph [] r )
+  = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, MMorph [] r )
     => Reference w r s t a b
 
 -- | A reference that can access mutable data that is available in a number of

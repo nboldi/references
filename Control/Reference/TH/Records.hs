@@ -40,7 +40,7 @@ snd' :: 'Lens' (Tuple a c) (Tuple a d) c d
 snd' = 'lens' _snd' (\b tup -> tup { _snd' = b })
 @
 -}
-module Control.Reference.TH.Generate (makeReferences, debugTH) where
+module Control.Reference.TH.Records (makeReferences, debugTH) where
 
 import Language.Haskell.TH hiding (ListT)
 import qualified Data.Map as M

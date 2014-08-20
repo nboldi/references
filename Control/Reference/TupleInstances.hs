@@ -8,5 +8,5 @@ module Control.Reference.TupleInstances where
 
 import Control.Reference.TH.Tuple
 
-$(makeTupleRefs 16 16)
+$(makeTupleRefs hsTupConf 16 16)
 

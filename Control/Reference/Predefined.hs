@@ -7,7 +7,7 @@
 #endif
 
 
--- | Predefined references for commonly used data structures.
+-- | Predefined references for commonly used data structures and reference generators.
 --
 -- When defining lenses one should use the more general types. For instance 'Lens' instead of the more strict 'Lens''. This way references with different @m1@ and @m2@ monads can be combined if there is a monad @m'@ for @MMorph m1 m'@ and @MMorph m2 m'@.
 module Control.Reference.Predefined where
