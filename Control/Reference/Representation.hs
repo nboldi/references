@@ -8,10 +8,6 @@
 -- | This module declares the representation and basic classes of references.
 --
 -- This module should not be imported directly.
-
--- TODO: references that can be flipped (isomorphisms and prisms)
--- TODO: indexed traversals
--- TODO: read-only and write-only references
 module Control.Reference.Representation where
 
 import Control.Applicative
