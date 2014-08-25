@@ -65,9 +65,6 @@ test12 :: Writer [String] (Int,Int)
 test12 = (both :: Simple (WriterTraversal' [String] Identity) (Int,Int) Int) 
   #| (tell . (:[]) . show) $ (0, 1)
 
-instance Monoid s => MMorph [] (ListT (Writer s)) where
-  morph = ListT . return 
-         
 data Dept = Dept { _manager :: Employee
                  , _staff :: [Employee] 
                  } deriving (Eq, Show)

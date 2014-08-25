@@ -6,24 +6,46 @@
 module Control.Reference.Examples.TH where
 
 import Control.Reference.InternalInterface
+import Control.Reference.TupleInstances
 
 import Control.Applicative
 import Language.Haskell.TH
 
 -- | Reference all type variables inside a type
-typeVariables :: Simple Traversal Type Name
-typeVariables = fromTraversal freeTypeVariables'
-  where freeTypeVariables' f (ForallT vars ctx t) = ForallT vars ctx <$> freeTypeVariables' f t
-        freeTypeVariables' f (AppT t1 t2) = AppT <$> freeTypeVariables' f t1 <*> freeTypeVariables' f t2
-        freeTypeVariables' f (SigT t k) = SigT <$> freeTypeVariables' f t <*> pure k
-        freeTypeVariables' f (VarT n) = VarT <$> f n
-        freeTypeVariables' _ t = pure t
+typeVariableNames :: Simple Traversal Type Name
+typeVariableNames = typeVariables & typeVar
+        
+-- | Reference the name of the type variable
+typeVar :: Simple Partial Type Name
+typeVar = partial ( \case VarT n -> Right (n, \n' -> VarT n')
+                          other -> Left other )
+        
+-- | Reference all type variables inside a type
+typeVariables :: Simple Traversal Type Type
+typeVariables = fromTraversal typeVariables'
+  where typeVariables' f (ForallT vars ctx t) = ForallT vars ctx <$> typeVariables' f t
+        typeVariables' f (AppT t1 t2) = AppT <$> typeVariables' f t1 <*> typeVariables' f t2
+        typeVariables' f (SigT t k) = SigT <$> typeVariables' f t <*> pure k
+        typeVariables' f tv@(VarT _) = f tv
+        typeVariables' _ t = pure t        
+        
+-- | Reference all type variables not binded by a forall
+freeTypeVariables :: Simple Traversal Type Type
+freeTypeVariables = fromTraversal (freeTypeVariables' [])
+  where freeTypeVariables' bn f (ForallT vars ctx t) 
+          = ForallT vars ctx <$> freeTypeVariables' (bn ++ (vars ^* traverse&typeVarName)) f t
+        freeTypeVariables' bn f (AppT t1 t2) = AppT <$> freeTypeVariables' bn f t1 <*> freeTypeVariables' bn f t2
+        freeTypeVariables' bn f (SigT t k) = SigT <$> freeTypeVariables' bn f t <*> pure k
+        freeTypeVariables' bn f tv@(VarT n) = if n `elem` bn then pure tv else f tv
+        freeTypeVariables' bn _ t = pure t
  
 -- | Reference the name of the type variable inside a type variable binder
 typeVarName :: Simple Lens TyVarBndr Name
 typeVarName = lens (\case PlainTV n -> n; KindedTV n _ -> n) 
                    (\n' -> \case PlainTV _ -> PlainTV n'; KindedTV _ k -> KindedTV n' k)
 
+
+                   
 -- | Reference the characters of the name.
 -- If changed there is no guarantee that the created name will be unique.
 nameBaseStr :: Simple Lens Name String
@@ -47,6 +69,10 @@ conFields = lens getFlds setFlds
         setFlds [fld1',fld2'] (InfixC _ n _) = InfixC fld1' n fld2'
         setFlds flds' (ForallC bind ctx c) = ForallC bind ctx (setFlds flds' c)
 
+-- | Reference types of fields
+conTypes :: Simple Traversal Con Type
+conTypes = conFields & traverse & _2
+        
 -- | Reference the name of the constructor
 conName :: Simple Lens Con Name
 conName = lens getName setName
@@ -67,4 +93,34 @@ funApplication = lens (unfoldExpr []) (\ls _ -> foldl1 AppE ls)
   where unfoldExpr ls (AppE l r) = unfoldExpr (r : ls) l
         unfoldExpr ls e = e : ls 
 
+-- | Accesses the name of the defined object. Does not return name in signatures.
+definedName :: Simple Partial Dec Name
+definedName
+  = partial (\case FunD n c                 -> Right (n, \n' -> FunD n' c)
+                   ValD (VarP n) b w        -> Right (n, \n' -> ValD (VarP n') b w) 
+                   DataD c n tv con d       -> Right (n, \n' -> DataD c n' tv con d) 
+                   NewtypeD c n tv con d    -> Right (n, \n' -> NewtypeD c n' tv con d) 
+                   TySynD n tv t            -> Right (n, \n' -> TySynD n' tv t) 
+                   ClassD c n tv fd f       -> Right (n, \n' -> ClassD c n' tv fd f) 
+                   FamilyD fl n tv k        -> Right (n, \n' -> FamilyD fl n' tv k) 
+                   other -> Left other)
 
+-- | Accesses the constructors of a data or newtype definition.
+-- After changing the definition becames a newtype if there is only one constructor.
+definedConstructors :: Simple Partial Dec [Con]
+definedConstructors
+  = partial (\case DataD c n tv con d       -> Right (con, \con' -> createConOrNewtype c n tv con' d) 
+                   NewtypeD c n tv con d    -> Right ([con], \con' -> createConOrNewtype c n tv con' d) 
+                   other -> Left other)
+  where createConOrNewtype c n tv [con] d = NewtypeD c n tv con d
+        createConOrNewtype c n tv cons d = DataD c n tv cons d
+        
+-- | Accesses the type variables of a definition
+definedTypeArgs :: Simple Partial Dec [TyVarBndr]
+definedTypeArgs
+  = partial (\case DataD c n tv con d       -> Right (tv, \tv' -> DataD c n tv' con d) 
+                   NewtypeD c n tv con d    -> Right (tv, \tv' -> NewtypeD c n tv' con d) 
+                   TySynD n tv t            -> Right (tv, \tv' -> TySynD n tv' t) 
+                   ClassD c n tv fd f       -> Right (tv, \tv' -> ClassD c n tv' fd f) 
+                   FamilyD fl n tv k        -> Right (tv, \tv' -> FamilyD fl n tv' k) 
+                   other -> Left other)

@@ -164,10 +164,12 @@ makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
   = runStateT (typVarsBounded #~ updateName $ fldTyp) M.empty           
   where typVarsBounded :: Simple (StateTraversal' (M.Map Name Name) Q) Type Name
-        typVarsBounded = typeVariables & filtered (`elem` typArgs)
+        typVarsBounded = typeVariableNames & filtered (`elem` typArgs)
         updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
                              modify (M.insert name name')
                              return name'
+                             
+        
                              
 
 -- | Dictates what reference names should be generated from field names
@@ -203,8 +205,4 @@ bindAndRebuild con
               , bindVars
               )
 
-instance MMorph [] (ListT (StateT s Q)) where
-  morph = ListT . return
 
-instance Monad m => MMorph (StateT s m) (ListT (StateT s m)) where
-  morph = lift

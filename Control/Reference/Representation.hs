@@ -1,4 +1,3 @@
-{- LANGUAGE CPP -}
 {-# LANGUAGE KindSignatures, TypeOperators #-}
 {-# LANGUAGE ScopedTypeVariables, RankNTypes #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts, UndecidableInstances
@@ -10,6 +9,7 @@
 -- This module should not be imported directly.
 module Control.Reference.Representation where
 
+import Data.Maybe (maybeToList)
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Base
@@ -138,7 +138,7 @@ type Lens' = Reference Identity Identity
 type RefPlus s t a b
   = forall w r . ( RefMonads w r, MonadPlus r )
     => Reference w r s t a b
-
+    
 -- | Partial lens. A 'Reference' that can access data that may not exist in the context.
 -- Every lens is a partial lens.
 --
@@ -161,7 +161,7 @@ type Partial' = Reference Identity Maybe
 -- updater in the exactly the same number of times that is the number of the values
 -- returned by it's 'getRef' function.
 type Traversal s t a b
-  = forall w r . (RefMonads w r, MonadPlus r, MMorph [] r )
+  = forall w r . (RefMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
     => Reference w r s t a b
 
 -- | Strict traversal. A reference that must access data that is available in a
@@ -193,7 +193,7 @@ type IOPartial s t a b
 type IOPartial' = Reference IO (MaybeT IO)
     
 type IOTraversal s t a b
-  = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, MMorph [] r )
+  = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
     => Reference w r s t a b
 
 -- | A reference that can access mutable data that is available in a number of
@@ -223,7 +223,7 @@ type StatePartial' s m = Reference (StateT s m) (MaybeT (StateT s m))
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may exist in multiple instances.
 type StateTraversal st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph [] r, MMorph (StateT st m) r )
+  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (StateT st m) r )
     => Reference w r s t a b
 
 -- | A reference that must access a value inside a 'StateT' transformed monad
@@ -253,7 +253,7 @@ type WriterPartial' s m = Reference (WriterT s m) (MaybeT (WriterT s m))
 -- | A reference that can access a value inside a 'WriteT' transformed monad
 -- that may exist in multiple instances.
 type WriterTraversal st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph [] r, MMorph (WriterT st m) r )
+  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (WriterT st m) r )
     => Reference w r s t a b
     
 -- | A reference that must access a value inside a 'WriteT' transformed monad
@@ -289,4 +289,10 @@ instance MMorph Identity Maybe where
 
 instance MMorph Identity [] where
   morph = return . runIdentity
+  
+instance MMorph Maybe [] where
+  morph = maybeToList
+  
+instance MMorph [] [] where
+  morph = id
   
