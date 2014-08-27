@@ -17,6 +17,8 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
 import Control.Monad.Writer
 import Language.Haskell.TH hiding (ListT)
+import qualified Data.IntMap as IM
+import qualified Data.Sequence as Seq
 import System.Directory
 import System.FileLock
 import Network.Socket
@@ -139,7 +141,17 @@ test20 :: Tuple Int String
 test20 = fst' .- length
          $ snd' .- show
          $ Tuple "almafa" 42
-
+         
+test21 :: IM.IntMap String 
+test21 = element 2 ?= "two"
+         $ element 3 ?- (++"_")
+         $ IM.fromList [(5, "5"), (2, "2")]
+                  
+test22 :: Seq.Seq String 
+test22 = element 1 ?- ("_"++)
+         $ element 3 ?= "_"
+         $ Seq.fromList ["1","2","3"]
+         
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
@@ -205,4 +217,6 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test18" (MWrapped (Just "3")) test18
                  , TestCase $ assertEqual "test19" (Just' "42") test19
                  , TestCase $ assertEqual "test20" (Tuple 6 "42") test20
+                 , TestCase $ assertEqual "test21" (IM.fromList [(2,"two"),(5,"5")]) test21
+                 , TestCase $ assertEqual "test22" (Seq.fromList ["1","_2","3"]) test22
                  ]

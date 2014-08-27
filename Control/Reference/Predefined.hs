@@ -25,6 +25,8 @@ import Control.Concurrent.MVar.Lifted
 import Control.Concurrent.Chan
 import Data.IORef
 import Data.Map as Map
+import qualified Data.IntMap as IM
+import qualified Data.Sequence as Seq
 import Data.Either.Combinators
 
 -- * Trivial references
@@ -157,15 +159,39 @@ instance Association [a] where
           upd f ls = let (before,rest) = splitAt i ls
                       in case rest of [] -> return before
                                       (x:xs) -> f x >>= \fx -> return $ before ++ fx : xs
+
+instance Association (Seq.Seq a) where          
+  type AssocIndex (Seq.Seq a) = Int
+  type AssocElem (Seq.Seq a) = a
+  element i = reference (morph . at i) (\v -> upd (const (return v)))
+                        upd
+    where at :: Int -> Seq.Seq a -> Maybe a
+          at n s = case Seq.viewl (snd (Seq.splitAt i s)) of 
+                     Seq.EmptyL -> Nothing
+                     v Seq.:< _ -> Just v
+          
+          upd :: Monad w => (a -> w a) -> Seq.Seq a -> w (Seq.Seq a)
+          upd f s = let (before,rest) = Seq.splitAt i s
+                     in case Seq.viewl rest of 
+                          Seq.EmptyL -> return before
+                          x Seq.:< xs -> f x >>= \fx -> return $ before Seq.>< (fx Seq.<| xs)
   
 instance Ord k => Association (Map k v) where
   type AssocIndex (Map k v) = k
   type AssocElem (Map k v) = v
   element k = reference (morph . Map.lookup k)
-                        (\v -> return . insert k v) 
-                        (\trf m -> case Map.lookup k m of Just x -> trf x >>= \x' -> return (insert k x' m)
+                        (\v -> return . Map.insert k v) 
+                        (\trf m -> case Map.lookup k m of Just x -> trf x >>= \x' -> return (Map.insert k x' m)
                                                           Nothing -> return m)
 
+instance Association (IM.IntMap v) where
+  type AssocIndex (IM.IntMap v) = Int
+  type AssocElem (IM.IntMap v) = v
+  element k = reference (morph . IM.lookup k)
+                        (\v -> return . IM.insert k v) 
+                        (\trf m -> case IM.lookup k m of Just x -> trf x >>= \x' -> return (IM.insert k x' m)
+                                                         Nothing -> return m)
+                                                          
 -- * Stateful references
 
 -- | A dummy object to interact with the user through the console.
