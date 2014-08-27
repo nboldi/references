@@ -8,6 +8,7 @@ description:         References can read, write or update parts of the data.
 		     There are two things that references can do but the previously mentioned access methods don't.
 		     .
 		      * References can cooperate with monads, for example IO.
+             .
 		      * References can be added using the @&+&@ operator, to create new lenses more easily.
 		     .
 		     Basic idea taken from the currently not maintained package <https://hackage.haskell.org/package/yall>. 
