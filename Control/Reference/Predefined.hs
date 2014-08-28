@@ -19,6 +19,7 @@ import Control.Applicative
 import Control.Monad
 import qualified Data.Traversable as Trav
 import Data.Ratio
+import Data.Complex
 import Control.Monad.Trans.Control
 import Control.Monad.Identity
 import Control.Monad.Writer
@@ -144,7 +145,19 @@ _numerator = lens numerator (\num' r -> num' % denominator r)
 -- | Accesses the denominator of a ratio
 _denominator :: Integral a => Simple Lens (Ratio a) a
 _denominator = lens denominator (\denom' r -> numerator r % denom') 
-           
+                 
+-- | Accesses the real part of a complex number
+_realPart :: RealFloat a => Simple Lens (Complex a) a
+_realPart = lens realPart (\real' c -> real' :+ imagPart c) 
+
+-- | Accesses the imaginary part of a complex number
+_imagPart :: RealFloat a => Simple Lens (Complex a) a
+_imagPart = lens imagPart (\imag' c -> realPart c :+ imag') 
+      
+-- | Accesses the polar representation of a complex number
+_polar :: RealFloat a => Simple Lens (Complex a) (a, a)
+_polar = iso polar (uncurry mkPolar)
+                
 -- * Stateful references
 
 -- | A dummy object to interact with the user through the console.
