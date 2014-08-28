@@ -1,9 +1,10 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE RankNTypes, FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes, FlexibleContexts, FlexibleInstances, ScopedTypeVariables #-}
 module Control.Reference.Predefined.Containers where
 
 import Control.Reference.Representation
+import Control.Reference.Predefined
 import Control.Reference.Operators
                  
 import Data.Map as Map
@@ -66,6 +67,15 @@ instance Association (Seq.Seq a) where
   
 class Association e => Mapping e where
   at :: AssocIndex e -> Simple Lens e (Maybe (AssocElem e))
+    
+instance Eq a => Association (a -> Maybe b) where          
+  type AssocIndex (a -> Maybe b) = a
+  type AssocElem (a -> Maybe b) = b
+  element i = simplePartial (\f -> case f i of Just x -> Just (x, \b k -> if i == k then Just b else f k)
+                                               Nothing -> Nothing) 
+                                               
+instance Eq a => Mapping (a -> Maybe b) where
+  at i = lens ($ i) (\b f k -> if i == k then b else f k)
     
 instance Ord k => Association (Map k v) where
   type AssocIndex (Map k v) = k

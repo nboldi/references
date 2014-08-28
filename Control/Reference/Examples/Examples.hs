@@ -188,6 +188,11 @@ test27 = at "2" .= Nothing
          $ at "3" .- (fmap (subtract 1))
          $ Map.fromList [("5",5), ("3",3), ("2",2)]
          
+test28 :: Int -> Maybe String
+test28 = at 3 .= Nothing
+         $ element 1 ?- (++"_")
+         $ \a -> if a > 0 then Just (show a) else Nothing
+         
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
@@ -259,4 +264,6 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test24" (IS.fromList [1,4]) test24
                  , TestCase $ assertEqual "test25" (T.Node 1 [T.Node 2 [], T.Node 4 [T.Node 1 []]]) test25
                  , TestCase $ assertEqual "test26" (Arr.listArray (1,3) ["Hello!","World","World"]) test26
+                 , TestCase $ assertEqual "test27" (Map.fromList [("5",5), ("3",2)]) test27
+                 , TestCase $ assertEqual "test28" ["1_", "2"] (catMaybes $ map test28 [0..3])
                  ]
