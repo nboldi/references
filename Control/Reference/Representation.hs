@@ -290,6 +290,9 @@ instance MMorph Identity Maybe where
 instance MMorph Identity [] where
   morph = return . runIdentity
   
+instance MMorph Maybe Maybe where
+  morph = id
+  
 instance MMorph Maybe [] where
   morph = maybeToList
   

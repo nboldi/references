@@ -13,6 +13,7 @@
 module Control.Reference.Predefined where
 
 import Control.Reference.Representation
+import Control.Reference.Operators
 
 import Control.Applicative
 import Control.Monad
@@ -24,9 +25,6 @@ import Control.Monad.State
 import Control.Concurrent.MVar.Lifted
 import Control.Concurrent.Chan
 import Data.IORef
-import Data.Map as Map
-import qualified Data.IntMap as IM
-import qualified Data.Sequence as Seq
 import Data.Either.Combinators
 
 -- * Trivial references
@@ -137,61 +135,7 @@ _head = simplePartial (\case [] -> Nothing; x:xs -> Just (x,(:xs)))
 -- | References the tail of a list
 _tail :: Simple Partial [a] [a]
 _tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
-                 
--- | Lenses for given values in a data structure that is indexed by keys.
-class Association e where
-  type AssocIndex e :: *
-  type AssocElem e :: *
-  element :: AssocIndex e -> Simple Partial e (AssocElem e)
-          
-instance Association [a] where          
-  type AssocIndex [a] = Int
-  type AssocElem [a] = a
-  element i = reference (morph . at i) (\v -> upd (const (return v)))
-                        upd
-    where at :: Int -> [a] -> Maybe a
-          at n _ | n < 0  = Nothing
-          at _ []         = Nothing
-          at 0 (x:_)      = Just x
-          at n (_:xs)     = at (n-1) xs
-          
-          upd :: Monad w => (a -> w a) -> [a] -> w [a]
-          upd f ls = let (before,rest) = splitAt i ls
-                      in case rest of [] -> return before
-                                      (x:xs) -> f x >>= \fx -> return $ before ++ fx : xs
-
-instance Association (Seq.Seq a) where          
-  type AssocIndex (Seq.Seq a) = Int
-  type AssocElem (Seq.Seq a) = a
-  element i = reference (morph . at i) (\v -> upd (const (return v)))
-                        upd
-    where at :: Int -> Seq.Seq a -> Maybe a
-          at n s = case Seq.viewl (snd (Seq.splitAt i s)) of 
-                     Seq.EmptyL -> Nothing
-                     v Seq.:< _ -> Just v
-          
-          upd :: Monad w => (a -> w a) -> Seq.Seq a -> w (Seq.Seq a)
-          upd f s = let (before,rest) = Seq.splitAt i s
-                     in case Seq.viewl rest of 
-                          Seq.EmptyL -> return before
-                          x Seq.:< xs -> f x >>= \fx -> return $ before Seq.>< (fx Seq.<| xs)
-  
-instance Ord k => Association (Map k v) where
-  type AssocIndex (Map k v) = k
-  type AssocElem (Map k v) = v
-  element k = reference (morph . Map.lookup k)
-                        (\v -> return . Map.insert k v) 
-                        (\trf m -> case Map.lookup k m of Just x -> trf x >>= \x' -> return (Map.insert k x' m)
-                                                          Nothing -> return m)
-
-instance Association (IM.IntMap v) where
-  type AssocIndex (IM.IntMap v) = Int
-  type AssocElem (IM.IntMap v) = v
-  element k = reference (morph . IM.lookup k)
-                        (\v -> return . IM.insert k v) 
-                        (\trf m -> case IM.lookup k m of Just x -> trf x >>= \x' -> return (IM.insert k x' m)
-                                                         Nothing -> return m)
-                                                          
+           
 -- * Stateful references
 
 -- | A dummy object to interact with the user through the console.
@@ -213,9 +157,7 @@ consoleLine
 -- value, one may block and can corrupt the following updates.
 --
 -- Reads and updates are done in sequence, always using consistent data.
-mvar :: ( Functor w, Applicative w, Monad w, MMorph IO w, MonadBaseControl IO w
-        , Functor r, Applicative r, Monad r, MMorph IO r)
-         => Simple (Reference w r) (MVar a) a
+mvar :: Simple IOLens (MVar a) a
 mvar = reference (morph . (readMVar :: MVar a -> IO a))
                  (\newVal mv -> do empty <- isEmptyMVar mv
                                    when empty (swapMVar mv newVal >> return ())

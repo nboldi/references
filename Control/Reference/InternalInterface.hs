@@ -20,8 +20,10 @@ module Control.Reference.InternalInterface
        , MMorph(..)
        , module Control.Reference.Operators
        , module Control.Reference.Predefined
+       , module Control.Reference.Predefined.Containers
        ) where
 
 import Control.Reference.Representation
 import Control.Reference.Operators
 import Control.Reference.Predefined
+import Control.Reference.Predefined.Containers

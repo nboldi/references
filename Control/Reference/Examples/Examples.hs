@@ -17,8 +17,13 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
 import Control.Monad.Writer
 import Language.Haskell.TH hiding (ListT)
+import Data.Maybe
+import qualified Data.Array as Arr
+import qualified Data.Set as Set
 import qualified Data.IntMap as IM
+import qualified Data.IntSet as IS
 import qualified Data.Sequence as Seq
+import qualified Data.Tree as T
 import System.Directory
 import System.FileLock
 import Network.Socket
@@ -152,6 +157,29 @@ test22 = element 1 ?- ("_"++)
          $ element 3 ?= "_"
          $ Seq.fromList ["1","2","3"]
          
+test23 :: Set.Set Int 
+test23 = contains 2 ?= False
+         $ contains 3 ?- not
+         $ contains 4 ?- not
+         $ Set.fromList [1,2,3]
+         
+test24 :: IS.IntSet 
+test24 = contains 2 ?= False
+         $ contains 3 ?- not
+         $ contains 4 ?- not
+         $ IS.fromList [1,2,3]       
+         
+test25 :: T.Tree Int
+test25 = (\tree -> element [1,0] ?= fromJust (tree ^? element []) $ tree)
+           $ element [1] ?- (+1)
+           $ element [2] ?= 0
+           $ T.Node 1 [T.Node 2 [], T.Node 3 [T.Node 4 []]]
+           
+test26 :: Arr.Array Int String
+test26 = element 1 ?- (++"!")
+           $ element 2 ?= "World"
+           $ Arr.listArray (1,3) ["Hello","My","World"]
+         
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
@@ -219,4 +247,8 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test20" (Tuple 6 "42") test20
                  , TestCase $ assertEqual "test21" (IM.fromList [(2,"two"),(5,"5")]) test21
                  , TestCase $ assertEqual "test22" (Seq.fromList ["1","_2","3"]) test22
+                 , TestCase $ assertEqual "test23" (Set.fromList [1,4]) test23
+                 , TestCase $ assertEqual "test24" (IS.fromList [1,4]) test24
+                 , TestCase $ assertEqual "test25" (T.Node 1 [T.Node 2 [], T.Node 4 [T.Node 1 []]]) test25
+                 , TestCase $ assertEqual "test26" (Arr.listArray (1,3) ["Hello!","World","World"]) test26
                  ]

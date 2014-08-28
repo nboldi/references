@@ -68,6 +68,8 @@ library
                      , Control.Reference.Representation
                      , Control.Reference.Operators
                      , Control.Reference.Predefined
+                     , Control.Reference.Predefined.Containers
+                     , Control.Reference.Predefined.Containers.Tree
                      , Control.Reference.TupleInstances
                      , Control.Reference.InternalInterface
   build-depends:       base >=4.6 && <5 
