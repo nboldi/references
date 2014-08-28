@@ -18,6 +18,7 @@ import Control.Reference.Operators
 import Control.Applicative
 import Control.Monad
 import qualified Data.Traversable as Trav
+import Data.Ratio
 import Control.Monad.Trans.Control
 import Control.Monad.Identity
 import Control.Monad.Writer
@@ -135,6 +136,14 @@ _head = simplePartial (\case [] -> Nothing; x:xs -> Just (x,(:xs)))
 -- | References the tail of a list
 _tail :: Simple Partial [a] [a]
 _tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
+           
+-- | Accesses the numerator of a ratio
+_numerator :: Integral a => Simple Lens (Ratio a) a
+_numerator = lens numerator (\num' r -> num' % denominator r) 
+
+-- | Accesses the denominator of a ratio
+_denominator :: Integral a => Simple Lens (Ratio a) a
+_denominator = lens denominator (\denom' r -> numerator r % denom') 
            
 -- * Stateful references
 
