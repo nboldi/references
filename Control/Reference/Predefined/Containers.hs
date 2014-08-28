@@ -4,6 +4,7 @@
 module Control.Reference.Predefined.Containers where
 
 import Control.Reference.Representation
+import Control.Reference.Operators
                  
 import Data.Map as Map
 import qualified Data.Array as Arr
@@ -16,8 +17,9 @@ import qualified Data.Sequence as Seq
 class Association e where
   type AssocIndex e :: *
   type AssocElem e :: *
+  
   element :: AssocIndex e -> Simple Partial e (AssocElem e)
-   
+     
 instance Association [a] where          
   type AssocIndex [a] = Int
   type AssocElem [a] = a
@@ -62,6 +64,9 @@ instance Association (Seq.Seq a) where
                           Seq.EmptyL -> return before
                           x Seq.:< xs -> f x >>= \fx -> return $ before Seq.>< (fx Seq.<| xs)
   
+class Association e => Mapping e where
+  at :: AssocIndex e -> Simple Lens e (Maybe (AssocElem e))
+    
 instance Ord k => Association (Map k v) where
   type AssocIndex (Map k v) = k
   type AssocElem (Map k v) = v
@@ -70,14 +75,29 @@ instance Ord k => Association (Map k v) where
                         (\trf m -> case Map.lookup k m of Just x -> trf x >>= \x' -> return (Map.insert k x' m)
                                                           Nothing -> return m)
 
+instance Ord k => Mapping (Map k v) where
+  at k = reference (return . (^? element k))
+                   (\v -> return . Map.alter (const v) k) 
+                   (\f m -> f (Map.lookup k m) >>=
+                              return . maybe (Map.delete k m) 
+                                             (\fx -> Map.insert k fx m))                   
+                                                          
 instance Association (IM.IntMap v) where
   type AssocIndex (IM.IntMap v) = Int
   type AssocElem (IM.IntMap v) = v
   element k = reference (morph . IM.lookup k)
                         (\v -> return . IM.insert k v) 
-                        (\trf m -> case IM.lookup k m of Just x -> trf x >>= \x' -> return (IM.insert k x' m)
-                                                         Nothing -> return m)
+                        (\trf m -> case IM.lookup k m of 
+                                     Just x -> trf x >>= \x' -> return (IM.insert k x' m)
+                                     Nothing -> return m)
 
+instance Mapping (IM.IntMap v) where
+  at k = reference (return . (^? element k))
+                   (\v -> return . IM.alter (const v) k) 
+                   (\f m -> f (IM.lookup k m) >>=
+                              return . maybe (IM.delete k m) 
+                                             (\fx -> IM.insert k fx m))   
+                                                         
 -- | Containers that can be used as a set, inserting and removing elements
 class SetLike e where
   type SetElem e :: *

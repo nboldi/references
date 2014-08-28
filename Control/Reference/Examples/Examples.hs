@@ -20,6 +20,7 @@ import Language.Haskell.TH hiding (ListT)
 import Data.Maybe
 import qualified Data.Array as Arr
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Sequence as Seq
@@ -150,6 +151,7 @@ test20 = fst' .- length
 test21 :: IM.IntMap String 
 test21 = element 2 ?= "two"
          $ element 3 ?- (++"_")
+         $ at 4 .= Just "4"
          $ IM.fromList [(5, "5"), (2, "2")]
                   
 test22 :: Seq.Seq String 
@@ -179,6 +181,12 @@ test26 :: Arr.Array Int String
 test26 = element 1 ?- (++"!")
            $ element 2 ?= "World"
            $ Arr.listArray (1,3) ["Hello","My","World"]
+         
+
+test27 :: Map.Map String Int
+test27 = at "2" .= Nothing
+         $ at "3" .- (fmap (subtract 1))
+         $ Map.fromList [("5",5), ("3",3), ("2",2)]
          
 example1 = 
   do result <- newEmptyMVar
@@ -245,7 +253,7 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test18" (MWrapped (Just "3")) test18
                  , TestCase $ assertEqual "test19" (Just' "42") test19
                  , TestCase $ assertEqual "test20" (Tuple 6 "42") test20
-                 , TestCase $ assertEqual "test21" (IM.fromList [(2,"two"),(5,"5")]) test21
+                 , TestCase $ assertEqual "test21" (IM.fromList [(2,"two"),(4,"4"),(5,"5")]) test21
                  , TestCase $ assertEqual "test22" (Seq.fromList ["1","_2","3"]) test22
                  , TestCase $ assertEqual "test23" (Set.fromList [1,4]) test23
                  , TestCase $ assertEqual "test24" (IS.fromList [1,4]) test24
