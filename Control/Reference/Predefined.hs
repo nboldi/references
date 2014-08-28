@@ -24,10 +24,12 @@ import Control.Monad.Trans.Control
 import Control.Monad.Identity
 import Control.Monad.Writer
 import Control.Monad.State
+import Control.Monad.ST
 import Control.Concurrent.MVar.Lifted
 import Control.Concurrent.Chan
 import Data.IORef
 import Data.Either.Combinators
+import Data.STRef
 
 -- * Trivial references
 
@@ -206,3 +208,11 @@ state = reference (morph . const get') (\a s -> morph (put' a) >> return s)
                   (\trf s -> (morph get' >>= trf >> return s))
   where put' = put :: s -> StateT s m ()
         get' = get :: StateT s m s
+   
+-- | Access the value inside an 'STRef'
+stRef :: Simple (STLens s) (STRef s a) a
+stRef = reference (morph . readSTRef)
+                  (\newVal ref -> morph $ writeSTRef ref newVal >> return ref)
+                  (\trf ref -> morph (readSTRef ref) >>= trf 
+                                 >>= morph . writeSTRef ref >> return ref)     
+ 

@@ -18,6 +18,7 @@ import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
 import Control.Monad.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
+import Control.Monad.ST (ST)
 import Control.Monad.Trans.Control (MonadBaseControl)
 
 -- | A reference is an accessor to a part or different view of some data. 
@@ -259,7 +260,40 @@ type WriterTraversal st m s t a b
 -- | A reference that must access a value inside a 'WriteT' transformed monad
 -- that may exist in multiple instances.
 type WriterTraversal' s m = Reference (WriterT s m) (ListT (WriterT s m))
+           
+
+-- * References for 'ST'
+
+-- | A reference that can access a value inside an 'ST' transformed monad.
+type STLens st s t a b
+  = forall w r . ( RefMonads w r, MMorph (ST st) w, MMorph (ST st) r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside an 'ST' transformed monad.
+type STLens' s = Reference (ST s) (ST s)
+
+-- | A reference that can access a value inside an 'ST' transformed monad
+-- that may not exist.
+type STPartial st s t a b
+  = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph (ST st) r )
+    => Reference w r s t a b
+
+-- | A reference that must access a value inside an 'ST' transformed monad
+-- that may not exist.
+type STPartial' s = Reference (ST s) (MaybeT (ST s))
+
+-- | A reference that can access a value inside an 'ST' transformed monad
+-- that may exist in multiple instances.
+type STTraversal st s t a b
+  = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (ST st) r )
+    => Reference w r s t a b
+    
+-- | A reference that must access a value inside an 'ST' transformed monad
+-- that may exist in multiple instances.
+type STTraversal' s = Reference (ST s) (ListT (ST s))
               
+
+           
 -- | States that 'm1' can be represented with 'm2'.
 -- That is because 'm2' contains more infromation than 'm1'.
 --
