@@ -9,7 +9,6 @@
 --
 module Control.Reference.InternalInterface
        ( Simple, Reference, bireference, reference, referenceWithClose
-       , turn
        , Iso
        , Lens, Partial, Traversal
        , Lens', Partial', Traversal'

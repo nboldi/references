@@ -60,6 +60,11 @@ traverse = reference (morph . execWriter . Trav.mapM (tell . (:[])))
 iso :: (a -> b) -> (b -> a) -> Simple Iso a b
 iso f g = bireference (return . f) (\b _ -> return . g $ b) (\trf a -> trf (f a) >>= return . g  ) 
                       (return . g) (\a _ -> return . f $ a) (\trf b -> trf (g b) >>= return . f  ) 
+             
+iso' :: (a -> b) -> (a' -> b') -> (b -> a) -> (b' -> a') -> Iso a a' b b'
+iso' f f' g g' 
+  = bireference (return . f) (\b _ -> return . g' $ b) (\trf a -> trf (f a) >>= return . g'  ) 
+                (return . g) (\a _ -> return . f' $ a) (\trf b -> trf (g b) >>= return . f'  ) 
 
 -- | Generates a lens from a getter and a setter
 lens :: (s -> a) -> (b -> s -> t) -> Lens s t a b
@@ -67,24 +72,34 @@ lens get set = reference (return . get)
                          (\b -> return . set b ) 
                          (\f a -> f (get a) >>= \b -> return $ set b a)
 
-
-                         
--- | Creates a monomorphic partial lense
+-- | Creates a polymorphic partial lense
+--
+-- @Either t a@ is used instead of @Maybe a@ to permit the types of 's' and 't' to differ.
 partial :: (s -> Either t (a, b -> t)) -> Partial s t a b
 partial access 
   = reference 
-      (\s   -> case access s of Left _ -> morph Nothing
-                                Right (a,_) -> return a)
-      (\b s -> case access s of Left t -> return t
-                                Right (_,set) -> return (set b))
-      (\f s -> case access s of Left t -> return t
-                                Right (a,set) -> f a >>= return . set)
-
+      (either (const $ morph Nothing) (return . fst) . access)
+      (\b -> return . either id (($b) . snd) . access)
+      (\f -> either return (\(a,set) -> f a >>= return . set) . access)
+         
+-- | Creates a polymorphic partial lens that can be turned to give a total lens
+prism :: (a -> s) -> (b -> t) -> (s -> Either t a) -> (t -> Maybe b) -> Prism s t a b
+prism back back' access access'
+  = bireference (either (const $ morph Nothing) return . access)
+                (\b -> return . either id (const $ (back' b)) . access)
+                (\f -> either return (f >=> return . back') . access)
+                (return . back)
+                (\t _ -> morph $ access' t)
+                (\f a -> f (back a) >>= morph . access')
+                
+-- | Creates a monomorphic partial lens that can be turned to give a total lens
+simplePrism :: (a -> s) -> (s -> Maybe a) -> Prism s s a a
+simplePrism back access = prism back back (\s -> maybe (Left s) Right (access s)) access
+                
 -- | Creates a simple partial lens
 simplePartial :: (s -> Maybe (a, a -> s)) -> Partial s s a a
 simplePartial access 
-  = partial (\s -> case access s of Just x -> Right x
-                                    Nothing -> Left s)
+  = partial (\s -> maybe (Left s) Right (access s))
 
                                                      
 -- | Clones a lens from "Control.Lens"
@@ -109,19 +124,16 @@ filtered p = reference (\s -> if p s then return s else mzero)
 -- * References for simple data structures
 
 -- | A partial lens to access the value that may not exist
-just :: Partial (Maybe a) (Maybe b) a b
-just = partial (\case Just x -> Right (x, Just)
-                      Nothing -> Left Nothing)
-
+just :: Prism (Maybe a) (Maybe b) a b
+just = prism Just Just (maybe (Left Nothing) Right) id
+                      
 -- | A partial lens to access the right option of an 'Either'
-right :: Partial (Either a b) (Either a c) b c
-right = partial (\case Right x -> Right (x, Right)
-                       Left a -> Left (Left a))
-
+right :: Prism (Either a b) (Either a c) b c
+right = prism Right Right (either (Left . Left) Right) rightToMaybe
+                       
 -- | A partial lens to access the left option of an 'Either'                  
-left :: Partial (Either a c) (Either b c) a b
-left = partial (\case Left a -> Right (a, Left)
-                      Right r -> Left (Right r))
+left :: Prism (Either a c) (Either b c) a b
+left = prism Left Left (either Right (Left . Right)) leftToMaybe
 
 -- | Access the value that is in the left or right state of an 'Either'
 anyway :: Lens (Either a a) (Either b b) a b
@@ -131,17 +143,45 @@ anyway = reference (either return return)
 
 -- | References both elements of a tuple
 both :: Traversal (a,a) (b,b) a b
-both = reference (\(x,y) -> morph [x,y]) 
-                 (\v -> return . const (v,v)) 
-                 (\f (x,y) -> (,) <$> f x <*> f y)
+both = reference (\(x,y)    -> morph [x,y]) 
+                 (\v        -> return . const (v,v)) 
+                 (\f (x,y)  -> (,) <$> f x <*> f y)
 
 -- | References the head of a list
-_head :: Simple Partial [a] a
-_head = simplePartial (\case [] -> Nothing; x:xs -> Just (x,(:xs)))
+atHead :: Simple Lens [a] (Maybe a)
+atHead = lens (\case [] -> Nothing; x:_ -> Just x)
+              (\case Nothing -> drop 1; 
+                     Just v  -> \case []    -> [v]
+                                      _:xs  -> v:xs)
+
+-- | References the element at the head of the list
+headElem :: Simple Partial [a] a
+headElem = atHead & just
     
 -- | References the tail of a list
 _tail :: Simple Partial [a] [a]
 _tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
+
+-- | References a suffix of a list
+dropped :: Int -> Simple Partial [a] [a]
+dropped 0 = self
+dropped i = _tail & dropped (i-1)
+      
+-- | Views a list as an optinal pair
+view :: Iso [a] [b] (Maybe (a,[a])) (Maybe (b,[b]))
+view = iso' to to from from
+  where to :: [x] -> Maybe (x,[x])
+        to [] = Nothing
+        to (x:xs) = Just (x,xs)
+        from :: Maybe (x,[x]) -> [x]
+        from Nothing = []
+        from (Just (x,xs)) = x:xs
+        
+-- | Accesses the reversed version of a list
+--
+-- > 'turn' reversed == reversed
+reversed :: Iso [a] [b] [a] [b]
+reversed = iso' reverse reverse reverse reverse 
            
 -- | Accesses the numerator of a ratio
 _numerator :: Integral a => Simple Lens (Ratio a) a

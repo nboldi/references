@@ -88,11 +88,6 @@ data Reference w r w' r' s t a b
               , refSet'     :: t -> a -> w' b
               , refUpdate'  :: (s -> w' t) -> a -> w' b
               }
-              
--- Flips a reference to the other direction
-turn :: Reference w r w' r' s t a b -> Reference w' r' w r a b s t
-turn (Reference refGet refSet refUpdate refGet' refSet' refUpdate')
-  = (Reference refGet' refSet' refUpdate' refGet refSet refUpdate)
 
 -- Creates a two-way reference
 bireference :: (RefMonads w r, RefMonads w' r')
@@ -168,6 +163,13 @@ type Simple t s a = t s s a a
 -- Can be used to access the same data in two different representations.
 type Iso s t a b
   = forall w r w' r' . (RefMonads w r, RefMonads w' r') => Reference w r w' r' s t a b
+         
+-- | A partial lens that can be turned to get a total lens.         
+type Prism s t a b
+  = forall w r w' r' . (RefMonads w r, RefMonads w' r'
+                       , MonadPlus r, MMorph Maybe r 
+                       , MonadPlus w', MMorph Maybe w') 
+      => Reference w r w' r' s t a b
                  
 -- | A 'Reference' that can access a part of data that exists in the context.
 -- Every well-formed 'Reference' is a 'Lens'.
@@ -376,4 +378,7 @@ instance MMorph Maybe [] where
   
 instance MMorph [] [] where
   morph = id
+  
+instance MMorph m MU where
+  morph _ = MU
   

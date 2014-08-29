@@ -27,6 +27,15 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
 
+              
+-- | Flips a reference to the other direction
+turn :: Reference w r w' r' s t a b -> Reference w' r' w r a b s t
+turn (Reference refGet refSet refUpdate refGet' refSet' refUpdate')
+  = (Reference refGet' refSet' refUpdate' refGet refSet refUpdate)
+  
+review :: Reference MU MU Identity Identity s t a b -> a -> s
+review r a = a ^. turn r
+
 -- * Getters
 
 -- | Gets the referenced data in the monad of the lens.
