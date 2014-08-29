@@ -88,8 +88,8 @@ conName = lens getName setName
 
 -- | Access a function application as a list of expressions with the function application
 -- at the head of the list and the arguments on it's tail.
-funApplication :: Simple Lens Exp [Exp]
-funApplication = lens (unfoldExpr []) (\ls _ -> foldl1 AppE ls)
+funApplication :: Simple Iso Exp [Exp]
+funApplication = iso (unfoldExpr []) (foldl1 AppE)
   where unfoldExpr ls (AppE l r) = unfoldExpr (r : ls) l
         unfoldExpr ls e = e : ls 
 

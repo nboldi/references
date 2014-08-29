@@ -31,7 +31,7 @@ import Control.Monad.Trans.List
 
 -- | Gets the referenced data in the monad of the lens.
 -- Does not bind the type of the writer monad, so the reference must have its type disambiguated.
-(^#) :: RefMonads w r => s -> Reference w r s t a b -> r a
+(^#) :: RefMonads w r => s -> Reference w r w' r' s t a b -> r a
 a ^# l = refGet l return a
 infixl 4 ^#
 
@@ -70,7 +70,7 @@ infixl 4 ^*!
 -- | Sets the referenced data to the given pure value in the monad of the reference.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#=) :: Reference w r s t a b -> b -> s -> w t
+(#=) :: Reference w r w' r' s t a b -> b -> s -> w t
 l #= v = refSet l v
 infixl 4 #=
 
@@ -109,7 +109,7 @@ infixl 4 *!=
 -- | Applies the given monadic function on the referenced data in the monad of the lens.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#~) :: Reference w r s t a b -> (a -> w b) -> s -> w t
+(#~) :: Reference w r w' r' s t a b -> (a -> w b) -> s -> w t
 l #~ trf = refUpdate l trf
 infixl 4 #~
 
@@ -148,7 +148,7 @@ infixl 4 *!~
 -- | Applies the given pure function on the referenced data in the monad of the lens.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#-) :: Monad w => Reference w r s t a b -> (a -> b) -> s -> w t
+(#-) :: Monad w => Reference w r w' r' s t a b -> (a -> b) -> s -> w t
 l #- trf = l #~ return . trf
 infixl 4 #-
 
@@ -187,7 +187,7 @@ infixl 4 *!-
 -- | Performs the given monadic action on referenced data while giving back the original data.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#|) :: Monad w => Reference w r s s a a -> (a -> w x) -> s -> w s
+(#|) :: Monad w => Reference w r w' r' s s a a -> (a -> w x) -> s -> w s
 l #| act = l #~ (\v -> act v >> return v)
 infixl 4 #|
 
@@ -214,11 +214,14 @@ infixl 4 *!|
 -- than the reference @r&p@ will access @c@ inside @a@.
 --
 -- Composition is associative: @ (r&p)&q = r&(p&q) @
-(&) :: (Monad w, Monad r) => Reference w r s t c d -> Reference w r c d a b
-    -> Reference w r s t a b
+(&) :: (Monad w, Monad r) => Reference w r w' r' s t c d -> Reference w r w' r' c d a b
+    -> Reference w r w' r' s t a b
 (&) l1 l2 = Reference (refGet l1 . refGet l2) 
                       (refUpdate l1 . refSet l2) 
                       (refUpdate l1 . refUpdate l2)
+                      (refGet' l2 . refGet' l1)
+                      (refUpdate' l2 . refSet' l1) 
+                      (refUpdate' l2 . refUpdate' l1)
 infixl 6 &
 
 -- | Adds two references.
@@ -233,11 +236,15 @@ infixl 6 &
 -- Addition is commutative only if we do not consider the order of the results from a get,
 -- or the order in which monadic actions are performed.
 --
-(&+&) :: (Monad w, MonadPlus r, MMorph [] r)
-         => Reference w r s s a a -> Reference w r s s a a
-         -> Reference w r s s a a
+(&+&) :: (RefMonads w r, RefMonads w' r', MonadPlus r, MonadPlus r', MMorph [] r)
+         => Reference w r w' r' s s a a -> Reference w r w' r' s s a a
+         -> Reference w r w' r' s s a a
 l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a) 
                       (\v -> refSet l1 v >=> refSet l2 v )
                       (\trf -> refUpdate l1 trf
                                  >=> refUpdate l2 trf )
+                      (\f a -> refGet' l1 f a `mplus` refGet' l2 f a) 
+                      (\v -> refSet' l1 v >=> refSet' l2 v )
+                      (\trf -> refUpdate' l1 trf
+                                 >=> refUpdate' l2 trf )
 infixl 5 &+&

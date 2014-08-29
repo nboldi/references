@@ -57,8 +57,9 @@ traverse = reference (morph . execWriter . Trav.mapM (tell . (:[])))
                      Trav.mapM
              
 -- | Generate a lens from a pair of inverse functions
-iso :: (a -> b) -> (b -> a) -> Lens a a b b
-iso f g = reference (return . f) (\b _ -> return . g $ b) (\trf a -> trf (f a) >>= return . g  ) 
+iso :: (a -> b) -> (b -> a) -> Simple Iso a b
+iso f g = bireference (return . f) (\b _ -> return . g $ b) (\trf a -> trf (f a) >>= return . g  ) 
+                      (return . g) (\a _ -> return . f $ a) (\trf b -> trf (g b) >>= return . f  ) 
 
 -- | Generates a lens from a getter and a setter
 lens :: (s -> a) -> (b -> s -> t) -> Lens s t a b
@@ -66,6 +67,8 @@ lens get set = reference (return . get)
                          (\b -> return . set b ) 
                          (\f a -> f (get a) >>= \b -> return $ set b a)
 
+
+                         
 -- | Creates a monomorphic partial lense
 partial :: (s -> Either t (a, b -> t)) -> Partial s t a b
 partial access 

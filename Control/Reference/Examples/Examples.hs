@@ -59,9 +59,12 @@ test7 = both&just *- (+1) $ (Just 0, Nothing)
 test8 :: IO (MVar Int)
 test8 = newEmptyMVar >>= emptyRef&mvar ?!- (+1)
 
+isoList :: Simple Iso [()] Int
+isoList = iso length (`replicate` ())
+
 test9 :: [()]
-test9 = let isoList = iso length (`replicate` ())
-         in isoList .- (+1) $ [(),(),()]
+test9 = isoList .- (+1) 
+          $ 3 ^. turn isoList
 
 test10 :: [Int]
 test10 = [1..10] ^* _tail&traverse &+& _tail&_tail&traverse

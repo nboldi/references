@@ -198,8 +198,7 @@ bindAndRebuild con
            fields = con ^. conFields
        bindVars <- replicateM (length fields) (newName "fld")
        return ( ConP name (map VarP bindVars)
-              , -- TODO : use funApplication isomorphisms
-                foldl AppE (ConE name) (map VarE bindVars)
+              , (ConE name : map VarE bindVars) ^. turn funApplication
               , bindVars
               )
 
