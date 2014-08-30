@@ -13,6 +13,7 @@ import qualified Data.Set as Set
 import qualified Data.IntSet as IS
 import qualified Data.IntMap as IM
 import qualified Data.Sequence as Seq
+import qualified Data.Text as Text
                  
 -- | Lenses for given values in a data structure that is indexed by keys.
 class Association e where
@@ -64,6 +65,21 @@ instance Association (Seq.Seq a) where
                      in case Seq.viewl rest of 
                           Seq.EmptyL -> return before
                           x Seq.:< xs -> f x >>= \fx -> return $ before Seq.>< (fx Seq.<| xs)
+  
+instance Association Text.Text where
+  type AssocIndex Text.Text = Int
+  type AssocElem Text.Text = Char
+  element i = reference (morph . at) (\v -> upd (const (return v)))
+                        upd
+    where at :: Text.Text -> Maybe Char
+          at s | Text.length s > i  = Just (Text.index s i)
+               | otherwise          = Nothing
+          
+          upd :: Monad w => (Char -> w Char) -> Text.Text -> w Text.Text
+          upd f s = let (before,rest) = Text.splitAt i s
+                     in case Text.uncons rest of 
+                          Nothing -> return before
+                          Just (x,xs) -> f x >>= \fx -> return $ Text.append before (Text.cons fx xs)
   
 class Association e => Mapping e where
   at :: AssocIndex e -> Simple Lens e (Maybe (AssocElem e))

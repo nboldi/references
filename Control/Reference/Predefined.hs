@@ -19,6 +19,7 @@ import Control.Applicative
 import Control.Monad
 import qualified Data.Traversable as Trav
 import Data.Ratio
+import qualified Data.Text as Text
 import Data.Complex
 import Control.Monad.Trans.Control
 import Control.Monad.Identity
@@ -176,6 +177,10 @@ view = iso' to to from from
         from :: Maybe (x,[x]) -> [x]
         from Nothing = []
         from (Just (x,xs)) = x:xs
+        
+-- | An isomorphism between the list and text representation of a string
+text :: Simple Iso String Text.Text 
+text = iso Text.pack Text.unpack   
         
 -- | Accesses the reversed version of a list
 --
