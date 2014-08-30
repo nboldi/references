@@ -196,6 +196,10 @@ test28 = at 3 .= Nothing
          $ element 1 ?- (++"_")
          $ \a -> if a > 0 then Just (show a) else Nothing
          
+-- test29 :: (Maybe Int, Either Int String)
+-- test29 = let r = just &|& right
+          -- in r ?- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
+         
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar

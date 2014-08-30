@@ -22,11 +22,13 @@
 --
 
 module Control.Reference.Operators where
+
 import Control.Reference.Representation
+
+import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
-
               
 -- | Flips a reference to the other direction
 turn :: Reference w r w' r' s t a b -> Reference w' r' w r a b s t
@@ -257,3 +259,25 @@ l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a)
                       (\trf -> refUpdate' l1 trf
                                  >=> refUpdate' l2 trf )
 infixl 5 &+&
+
+-- | Pack two references in parallel.
+
+(&|&) :: (RefMonads m m') 
+      => Reference m m m' m' s t a b -> Reference m m m' m' s' t' a' b' 
+           -> Reference m m m' m' (s, s') (t, t') (a, a') (b, b')
+r1 &|& r2 = Reference (\f (s1,s2) -> ((,) <$> refGet r1 return s1 <*> refGet r2 return s2) >>= f) 
+                      (\(b1,b2) (s1,s2) -> (,) <$> refSet r1 b1 s1 <*> refSet r2 b2 s2) 
+                      (\f (s1,s2) -> do a1 <- refGet r1 return s1
+                                        a2 <- refGet r2 return s2
+                                        t1 <- refUpdate r1 (liftM fst . flip (curry f) a2) s1
+                                        t2 <- refUpdate r2 (liftM snd . curry f a1) s2
+                                        return (t1, t2) ) 
+                      (\f (s1,s2) -> ((,) <$> refGet' r1 return s1 <*> refGet' r2 return s2) >>= f)
+                      (\(b1,b2) (s1,s2) -> (,) <$> refSet' r1 b1 s1 <*> refSet' r2 b2 s2)
+                      (\f (s1,s2) -> do a1 <- refGet' r1 return s1
+                                        a2 <- refGet' r2 return s2
+                                        t1 <- refUpdate' r1 (liftM fst . flip (curry f) a2) s1
+                                        t2 <- refUpdate' r2 (liftM snd . curry f a1) s2
+                                        return (t1, t2) )
+
+infixl 5 &|&
