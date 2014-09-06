@@ -111,6 +111,20 @@ reference :: ( RefMonads w r )
 reference gets sets updates = Reference (\f s -> gets s >>= f) sets updates 
                                         (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
 
+-- | Creates a reference where all operations are added in their original form.
+--
+-- The use of this method is not suggested, because it is closely related to the
+-- representation of the references.
+rawReference :: (RefMonads w r, RefMonads w' r')
+             => (forall x . (a -> r x) -> s -> r x)     -- ^ Getter
+             -> (b -> s -> w t)                         -- ^ Setter
+             -> ((a -> w b) -> s -> w t)                -- ^ Updater
+             -> (forall x . (s -> r' x) -> a -> r' x)    -- ^ Backward getter
+             -> (t -> a -> w' b)                        -- ^ Backward setter
+             -> ((s -> w' t) -> a -> w' b)              -- ^ Backward updater
+             -> Reference w r w' r' s t a b
+rawReference = Reference
+                                        
 -- | Creates a reference with explicit close operations that are executed
 -- after the data is accessed.
 referenceWithClose
@@ -128,7 +142,7 @@ referenceWithClose get getClose set setClose update updateClose
               (\b s -> set b s <* setClose s)
               (\trf s -> update trf s <* updateClose s)
               (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
-
+              
 -- | Polymorph unit type. Can represent a calculation that cannot calculate anything.
 data MU a = MU
 

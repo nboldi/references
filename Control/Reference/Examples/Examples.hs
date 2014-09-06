@@ -211,7 +211,7 @@ example1 =
      
      x <- hello ^?! (mvar & just) 
      mvar != x $ result
-     terminator ^! mvar
+     terminator ^! mvar 
 
 example2 = do consoleLine != "What is your name?" $ Console
               consoleLine !- ("Hello "++) $ Console 

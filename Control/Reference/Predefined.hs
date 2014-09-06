@@ -230,11 +230,14 @@ consoleLine
 --
 -- Reads and updates are done in sequence, always using consistent data.
 mvar :: Simple IOLens (MVar a) a
-mvar = reference (morph . (readMVar :: MVar a -> IO a))
-                 (\newVal mv -> do empty <- isEmptyMVar mv
-                                   when empty (swapMVar mv newVal >> return ())
-                                   return mv)
-                 (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
+mvar = rawReference 
+         (flip withMVarMasked)
+         (\newVal mv -> do empty <- isEmptyMVar mv
+                           if empty then putMVar mv newVal
+                                    else swapMVar mv newVal >> return ()
+                           return mv)
+         (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
+         (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
 
 
 chan :: Simple IOLens (Chan a) a

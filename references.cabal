@@ -1,5 +1,5 @@
 name:                references
-version:             0.2.1.1
+version:             0.2.1.2
 synopsis:            Generalization of lenses, folds and traversals to handle monads and addition.
 description:         References can read, write or update parts of the data.
 		     They are first-class values, can be passed in functions, transformed, combined.
@@ -73,6 +73,8 @@ library
                      , Control.Reference.TupleInstances
                      , Control.Reference.InternalInterface
   build-depends:       base >=4.6 && <5 
+                     , text ==1.1.*
+                     , array ==0.5.*
                      , mtl ==2.2.*
                      , transformers ==0.4.*
                      , containers ==0.5.*
