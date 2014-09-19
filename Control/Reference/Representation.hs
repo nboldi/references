@@ -151,6 +151,9 @@ instance Functor MU where
 instance Applicative MU where
   pure _ = MU
   _ <*> _ = MU
+instance Alternative MU where
+  empty = MU
+  MU <|> MU = MU
 instance Monad MU where
   return _ = MU
   _ >>= _ = MU
