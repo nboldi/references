@@ -160,7 +160,7 @@ instance Monad MU where
 instance MonadPlus MU where
   mzero = MU
   mplus _ _ = MU
-              
+                
 -- | A simple class to enforce that both reader and writer semantics of the reference are 'Monad's
 -- (as well as 'Applicative's and 'Functor's)
 class ( Functor w, Applicative w, Monad w
@@ -173,6 +173,18 @@ instance ( Functor w, Applicative w, Monad w
 -- | A monomorph 'Lens', 'Traversal', 'Partial', etc... 
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
+
+-- | A reference that cannot be written.
+type ReadOnlyRef r s t a b = Reference MU r MU MU s t a b
+
+-- | A two-way reference that cannot be written.
+type ReadOnlyBiRef r r' s t a b = Reference MU r MU r' s t a b
+
+-- | A reference that cannot be written.
+type SimpleReadOnlyRef r s a = Reference MU r MU MU s s a a
+
+-- | A two-way reference that cannot be written.
+type SimpleReadOnlyBiRef r r' s a = Reference MU r MU r' s s a a
 
 -- * Pure references
                  
@@ -235,10 +247,9 @@ type Traversal' = Reference Identity [] MU MU
 -- * References for 'IO'
 
 class ( MMorph IO w, MMorph IO r
-      , MonadBaseControl IO w, MonadBaseControl IO r ) => IOMonads w r where
-    
+      , MMorphControl IO w, MMorphControl IO r ) => IOMonads w r where
 instance ( MMorph IO w, MMorph IO r
-         , MonadBaseControl IO w, MonadBaseControl IO r ) => IOMonads w r where
+         , MMorphControl IO w, MMorphControl IO r ) => IOMonads w r where
 
 -- | A reference that can access mutable data.
 type IOLens s t a b
@@ -372,9 +383,35 @@ class MMorph (m1 :: * -> *) (m2 :: * -> *) where
   -- | Lifts the first monad into the second.
   morph :: m1 a -> m2 a
 
+class MMorph m1 m2 => MMorphControl (m1 :: * -> *) (m2 :: * -> *) where
+  type MSt m1 m2 :: * -> *
+  sink :: m2 a -> m1 (MSt m1 m2 a)
+  pullBack :: m1 (MSt m1 m2 a) -> m2 a
+  
 instance MMorph IO (MaybeT IO) where
   morph = MaybeT . liftM Just
-
+  
+instance MMorphControl IO (MaybeT IO) where
+  type MSt IO (MaybeT IO) = Maybe
+  sink (MaybeT m) = m
+  pullBack = MaybeT
+  
+-- FIXME: conflicts with MMorphControl m MU
+-- instance (Monad m, MMorph m m) => MMorphControl m m where
+  -- type MSt m m = Identity
+  -- sink m = m >>= return . Identity
+  -- pullBack m = m >>= return . runIdentity
+  
+instance (Monad IO, MMorph IO IO) => MMorphControl IO IO where
+  type MSt IO IO = Identity
+  sink m = m >>= return . Identity
+  pullBack m = m >>= return . runIdentity
+  
+instance (Monad m, MMorph m MU) => MMorphControl m MU where
+  type MSt m MU = MU
+  sink _ = return MU
+  pullBack _ = MU
+  
 instance MMorph IO (ListT IO) where
   morph = ListT . liftM (:[])
 

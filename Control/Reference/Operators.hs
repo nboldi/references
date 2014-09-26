@@ -35,44 +35,44 @@ turn :: Reference w r w' r' s t a b -> Reference w' r' w r a b s t
 turn (Reference refGet refSet refUpdate refGet' refSet' refUpdate')
   = (Reference refGet' refSet' refUpdate' refGet refSet refUpdate)
   
-review :: Reference MU MU Identity Identity s t a b -> a -> s
+review :: Reference MU MU MU Identity s s a a -> a -> s
 review r a = a ^. turn r
 
 -- * Getters
 
 -- | Gets the referenced data in the monad of the lens.
 -- Does not bind the type of the writer monad, so the reference must have its type disambiguated.
-(^#) :: RefMonads w r => s -> Reference w r w' r' s t a b -> r a
+(^#) :: RefMonads MU r => s -> Reference MU r MU MU s t a b -> r a
 a ^# l = refGet l return a
 infixl 4 ^#
 
 -- | Pure version of '^#'
-(^.) :: s -> Lens' s t a b -> a
+(^.) :: s -> SimpleReadOnlyRef Identity s a -> a
 a ^. l = runIdentity (a ^# l)
 infixl 4 ^.
 
 -- | Partial version of '^#'
-(^?) :: s -> Partial' s t a b -> Maybe a
+(^?) :: s -> SimpleReadOnlyRef Maybe s a -> Maybe a
 a ^? l = a ^# l
 infixl 4 ^?
 
 -- | Traversal version of '^#'
-(^*) :: s -> Traversal' s t a b -> [a]
+(^*) :: s -> SimpleReadOnlyRef [] s a -> [a]
 a ^* l = a ^# l
 infixl 4 ^*
 
 -- | IO version of '^#'
-(^!) :: s -> IOLens' s t a b -> IO a
+(^!) :: s -> SimpleReadOnlyRef IO s a -> IO a
 a ^! l = a ^# l
 infixl 4 ^!
 
 -- | IO partial version of '^#'
-(^?!) :: s -> IOPartial' s t a b -> IO (Maybe a)
+(^?!) :: s -> SimpleReadOnlyRef (MaybeT IO) s a -> IO (Maybe a)
 a ^?! l = runMaybeT (a ^# l)
 infixl 4 ^?!
 
 -- | IO traversal version of '^#'
-(^*!) :: s -> IOTraversal' s t a b -> IO [a]
+(^*!) :: s -> SimpleReadOnlyRef (ListT IO) s a -> IO [a]
 a ^*! l = runListT (a ^# l)
 infixl 4 ^*!
 

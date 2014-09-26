@@ -24,7 +24,7 @@ import Data.Complex
 import Control.Monad.Identity
 import Control.Monad.Writer
 import Control.Monad.State
-import Control.Concurrent.MVar.Lifted
+import Control.Concurrent.MVar hiding (modifyMVarMasked_)
 import Control.Concurrent.Chan
 import Data.IORef
 import Data.Either.Combinators
@@ -262,7 +262,6 @@ fileContent
                        (\(tfp,th) -> hClose th >> (just ?!| hClose) h >> removeFile tfp)
                        (\(_,th) -> hPutStr th cont >> (just ?!| hClose) h >> hSeek th AbsoluteSeek 0 
                                       >> hGetContents th >>= writeFile fp)
-                                    
                
 -- | Access a value inside an MVar.
 -- Setting is not atomic. If there is two supplier that may set the accessed
@@ -271,15 +270,30 @@ fileContent
 -- Reads and updates are done in sequence, always using consistent data.
 mvar :: Simple IOLens (MVar a) a
 mvar = rawReference 
-         (flip withMVarMasked)
-         (\newVal mv -> do empty <- isEmptyMVar mv
-                           if empty then putMVar mv newVal
-                                    else swapMVar mv newVal >> return ()
-                           return mv)
+         (\f mv -> pullBack $ withMVarMasked mv (sink . f))
+         (\newVal mv -> morph $ do empty <- isEmptyMVar mv
+                                   if empty then putMVar mv newVal
+                                            else swapMVar mv newVal >> return ()
+                                   return mv)
          (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
          (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
 
+-- | Generalized version of 'Control.Concurrent.MVar.modifyMVarMasked_'.
+modifyMVarMasked_ :: (Monad m, MMorphControl IO m) => MVar a -> (a -> m a) -> m ()
+modifyMVarMasked_ m io =
+  mask_ $ do
+    a  <- morph (takeMVar m)
+    a' <- io a `onException` morph (putMVar m a)
+    morph (putMVar m a')
 
+-- | Generalized version of 'Control.Exception.mask_'.
+mask_ :: (MMorphControl IO m) => m a -> m a
+mask_ = pullBack . Ex.mask_ . sink
+
+-- | Generalized version of 'Control.Exception.onException'.
+onException :: (MMorphControl IO m) => m a -> m b -> m a
+onException a b = pullBack $ Ex.onException (sink a) (sink b)
+    
 chan :: Simple IOLens (Chan a) a
 chan = reference (morph . readChan)
                  (\a ch -> morph (writeChan ch a) >> return ch)

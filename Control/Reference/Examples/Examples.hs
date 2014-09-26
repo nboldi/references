@@ -203,7 +203,8 @@ test28 = at 3 .= Nothing
 -- test29 :: (Maybe Int, Either Int String)
 -- test29 = let r = just &|& right
           -- in r ?- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
-         
+       
+-- | TODO: test it with timeout       
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
@@ -225,12 +226,13 @@ example3 = let logger :: String -> Simple IOLens a a
                             return (const (morph $ putStrLn $ n ++ ": read done"))
                             (\b _ -> return b) (const (morph $ putStrLn $ n ++ ": write done"))
                             (\trf a -> trf a) (const (morph $ putStrLn $ n ++ ": update done"))
+               loggedConsole :: Simple IOLens Console String
                loggedConsole = logger "a" & logger "b" & consoleLine
            in do loggedConsole != "Enter 'x'" $ Console
                  x <- read <$> (Console ^! loggedConsole) :: IO Int
                  loggedConsole != "Enter 'y'" $ Console
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
-                             
+                                               
 tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test2" (Right 3) test2
                  , TestCase $ assertEqual "test3" (Right 3) test3
