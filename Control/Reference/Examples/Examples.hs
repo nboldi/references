@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase, TypeOperators #-}
+{-# LANGUAGE LambdaCase, TypeOperators, BangPatterns #-}
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, MultiParamTypeClasses, RankNTypes #-}
 
 -- | A collection of random example references
@@ -25,8 +25,12 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Sequence as Seq
 import qualified Data.Tree as T
+import qualified Control.Exception as Ex
+import qualified Control.Exception.Lifted as ExL
 import System.Directory
-import System.FileLock
+import System.FilePath
+import System.IO
+import System.IO.Error
 import Network.Socket
 
 import Test.HUnit
@@ -226,23 +230,7 @@ example3 = let logger :: String -> Simple IOLens a a
                  x <- read <$> (Console ^! loggedConsole) :: IO Int
                  loggedConsole != "Enter 'y'" $ Console
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
-
--- | Reference to the contents of the file. Currently not thread-safe
-fileRef :: Simple IOPartial FilePath String
-fileRef = reference (\fp -> do exist <- morph (doesFileExist fp) 
-                               if exist then morph (withFileLock fp Shared 
-                                                       $ const $ readFile fp)
-                                        else morph Nothing)
-                    (\str fp -> morph (withFileLock fp Exclusive 
-                                          $ const $ writeFile fp str) >> return fp) 
-                    (\trf fp -> do exist <- morph (doesFileExist fp)
-                                   when exist (do lock <- morph (lockFile fp Exclusive) 
-                                                  morph (readFile fp) >>= trf 
-                                                     >>= morph . writeFile fp
-                                                  morph (unlockFile lock))
-                                   return fp)
-
-
+                             
 tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test2" (Right 3) test2
                  , TestCase $ assertEqual "test3" (Right 3) test3

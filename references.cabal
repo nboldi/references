@@ -1,6 +1,7 @@
 name:                references
 version:             0.2.1.2
 synopsis:            Generalization of lenses, folds and traversals to handle monads and addition.
+
 description:         References can read, write or update parts of the data.
 		     They are first-class values, can be passed in functions, transformed, combined.
 		     References generalize lenses, folds and traversals for haskell (see: <https://hackage.haskell.org/package/lens>).
@@ -46,8 +47,6 @@ description:         References can read, write or update parts of the data.
 		      * Generating references for newly defined records using the `makeReferences` Template Haskell function.
 		     .
 
-
-
 homepage:            https://github.com/lazac/references
 license:             BSD3
 license-file:        LICENSE
@@ -57,7 +56,15 @@ maintainer:          nboldi@elte.hu
 category:            Control
 build-type:          Simple
 cabal-version:       >=1.8
-
+-- For some reason, cabal won't allow me to write this:
+--
+-- source-repository:   head
+--   type:       git
+--   location:   git://github.com/lazac/references.git
+-- source-repository:   this
+--   type:       git
+--   location:   git://github.com/lazac/references.git
+--   tag:        0.2.1.2
 library
   exposed-modules:     Control.Reference
                      , Control.Reference.TH.MonadInstances

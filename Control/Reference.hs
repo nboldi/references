@@ -10,7 +10,7 @@ module Control.Reference
 ) where
 
 import Control.Reference.InternalInterface
-import Control.Reference.Predefined.Containers.Tree
+import Control.Reference.Predefined.Containers.Tree()
 
 -- generator modules
 import Control.Reference.TH.Monad

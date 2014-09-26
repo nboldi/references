@@ -56,7 +56,7 @@ import Control.Applicative
 import Control.Reference.InternalInterface
 import Control.Reference.Examples.TH
 import Control.Reference.TupleInstances
-import Control.Reference.TH.MonadInstances
+import Control.Reference.TH.MonadInstances()
 
 -- | Shows the generated declarations instead of using them.
 debugTH :: Q [Dec] -> Q [Dec]

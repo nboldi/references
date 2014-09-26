@@ -21,16 +21,19 @@ import qualified Data.Traversable as Trav
 import Data.Ratio
 import qualified Data.Text as Text
 import Data.Complex
-import Control.Monad.Trans.Control
 import Control.Monad.Identity
 import Control.Monad.Writer
 import Control.Monad.State
-import Control.Monad.ST
 import Control.Concurrent.MVar.Lifted
 import Control.Concurrent.Chan
 import Data.IORef
 import Data.Either.Combinators
 import Data.STRef
+import System.Directory
+import System.FilePath
+import System.IO
+import System.IO.Error
+import qualified Control.Exception as Ex
 
 -- * Trivial references
 
@@ -223,6 +226,43 @@ consoleLine
                                            >>= morph . putStrLn 
                                            >> return Console))
 
+-- | Reference to the contents of the file. Not thread-safe.
+--
+-- An empty file's content is @Just ""@ while a non-existent file's is @Nothing@
+--
+-- Creates a temporary file to store the result.
+fileContent :: Simple IOLens FilePath (Maybe String)
+fileContent 
+  = reference (\fp -> morph (getFileCont fp))
+              (\cont fp -> morph (setFileCont fp cont) >> return fp)
+              (\trf fp -> morph (getFile fp) >>= \hcnt -> trf (fmap snd hcnt)
+                             >>= morph . updateFileCont fp (fmap fst hcnt) >> return fp)
+  where getFileCont :: FilePath -> IO (Maybe String)
+        getFileCont fp = (Just <$> readFile fp)
+                           `Ex.catch` \e -> if isDoesNotExistError e then return Nothing 
+                                                                     else Ex.throw e
+        getFile :: FilePath -> IO (Maybe (Handle, String))
+        getFile fp = do h <- (Just <$> openFile fp ReadMode)
+                               `Ex.catch` \e -> if isDoesNotExistError e then return Nothing 
+                                                                         else Ex.throw e
+                        case h of 
+                          Just handle -> do cont <- hGetContents handle
+                                              `Ex.catch` \e -> hClose handle >> Ex.throw (e :: Ex.SomeException)
+                                            return $ Just (handle, cont)
+                          Nothing -> return Nothing
+                        
+        setFileCont :: FilePath -> Maybe String -> IO ()                                                             
+        setFileCont fp Nothing = removeFile fp
+        setFileCont fp (Just cont) = writeFile fp cont
+        
+        updateFileCont :: FilePath -> Maybe Handle -> Maybe String -> IO ()
+        updateFileCont fp h Nothing = (just ?!| hClose) h >> removeFile fp 
+        updateFileCont fp h (Just cont) 
+          = Ex.bracket (openTempFile (takeDirectory fp) (takeFileName fp))
+                       (\(tfp,th) -> hClose th >> (just ?!| hClose) h >> removeFile tfp)
+                       (\(_,th) -> hPutStr th cont >> (just ?!| hClose) h >> hSeek th AbsoluteSeek 0 
+                                      >> hGetContents th >>= writeFile fp)
+                                    
                
 -- | Access a value inside an MVar.
 -- Setting is not atomic. If there is two supplier that may set the accessed

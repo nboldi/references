@@ -387,6 +387,9 @@ instance MMorph Identity Maybe where
 instance MMorph Identity [] where
   morph = return . runIdentity
   
+instance MMorph Maybe (MaybeT IO) where
+  morph = MaybeT . return  
+  
 instance MMorph Maybe Maybe where
   morph = id
   
