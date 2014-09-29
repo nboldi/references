@@ -174,17 +174,9 @@ instance ( Functor w, Applicative w, Monad w
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
 
--- | A reference that cannot be written.
-type ReadOnlyRef r s t a b = Reference MU r MU MU s t a b
+type Getter r s a = Reference MU r MU MU s s a a
 
--- | A two-way reference that cannot be written.
-type ReadOnlyBiRef r r' s t a b = Reference MU r MU r' s t a b
-
--- | A reference that cannot be written.
-type SimpleReadOnlyRef r s a = Reference MU r MU MU s s a a
-
--- | A two-way reference that cannot be written.
-type SimpleReadOnlyBiRef r r' s a = Reference MU r MU r' s s a a
+type Setter w s t a b = Reference w MU MU MU s t a b
 
 -- * Pure references
                  
@@ -205,10 +197,6 @@ type Prism s t a b
 type Lens s t a b
   = forall w r . RefMonads w r => Reference w r MU MU s t a b
 
--- | Strict lens. A 'Reference' that must access a part of data that surely exists
--- in the context.
-type Lens' = Reference Identity Identity MU MU
-
 -- | A reference that may not have the accessed element, and that can
 -- look for the accessed element in multiple locations.
 type RefPlus s t a b
@@ -225,11 +213,7 @@ type Partial s t a b
   = forall w r . ( Functor w, Applicative w, Monad w
                  , Functor r, Applicative r, MonadPlus r, MMorph Maybe r )
     => Reference w r MU MU s t a b
-
--- | Strict partial lens. A 'Reference' that must access data that may not exist
--- in the context.
-type Partial' = Reference Identity Maybe MU MU
-
+    
 -- | A reference that can access data that is available in a number of instances
 -- inside the contexts.
 -- 
@@ -239,10 +223,6 @@ type Partial' = Reference Identity Maybe MU MU
 type Traversal s t a b
   = forall w r . (RefMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
     => Reference w r MU MU s t a b
-
--- | Strict traversal. A reference that must access data that is available in a
--- number of instances inside the context.
-type Traversal' = Reference Identity [] MU MU
 
 -- * References for 'IO'
 
@@ -256,24 +236,14 @@ type IOLens s t a b
   = forall w r . ( RefMonads w r, IOMonads w r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access mutable data that is available in the context.
-type IOLens' = Reference IO IO MU MU
-
 -- | A reference that can access mutable data that may not exist in the context.
 type IOPartial s t a b
   = forall w r . (RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access mutable data that may not exist in the context.
-type IOPartial' = Reference IO (MaybeT IO) MU MU
-    
 type IOTraversal s t a b
   = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
     => Reference w r MU MU s t a b
-
--- | A reference that can access mutable data that is available in a number of
--- instances inside the contexts.
-type IOTraversal' = Reference IO (ListT IO) MU MU
 
 -- * References for 'StateT'
 
@@ -282,28 +252,17 @@ type StateLens st m s t a b
   = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MMorph (StateT st m) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside a 'StateT' transformed monad.
-type StateLens' s m = Reference (StateT s m) (StateT s m) MU MU
-
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may not exist.
 type StatePartial st m s t a b
   = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph (StateT st m) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside a 'StateT' transformed monad
--- that may not exist.
-type StatePartial' s m = Reference (StateT s m) (MaybeT (StateT s m)) MU MU
-
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may exist in multiple instances.
 type StateTraversal st m s t a b
   = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (StateT st m) r )
     => Reference w r MU MU s t a b
-
--- | A reference that must access a value inside a 'StateT' transformed monad
--- that may exist in multiple instances.
-type StateTraversal' s m = Reference (StateT s m) (ListT (StateT s m)) MU MU
 
 -- * References for 'WriterT'
 
@@ -312,29 +271,17 @@ type WriterLens st m s t a b
   = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MMorph (WriterT st m) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside a 'WriterT' transformed monad.
-type WriterLens' s m = Reference (WriterT s m) (WriterT s m) MU MU
-
 -- | A reference that can access a value inside a 'WriterT' transformed monad
 -- that may not exist.
 type WriterPartial st m s t a b
   = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph (WriterT st m) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside a 'WriteT' transformed monad
--- that may not exist.
-type WriterPartial' s m = Reference (WriterT s m) (MaybeT (WriterT s m)) MU MU
-
 -- | A reference that can access a value inside a 'WriteT' transformed monad
 -- that may exist in multiple instances.
 type WriterTraversal st m s t a b
   = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (WriterT st m) r )
     => Reference w r MU MU s t a b
-    
--- | A reference that must access a value inside a 'WriteT' transformed monad
--- that may exist in multiple instances.
-type WriterTraversal' s m = Reference (WriterT s m) (ListT (WriterT s m)) MU MU
-           
 
 -- * References for 'ST'
 
@@ -343,31 +290,19 @@ type STLens st s t a b
   = forall w r . ( RefMonads w r, MMorph (ST st) w, MMorph (ST st) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside an 'ST' transformed monad.
-type STLens' s = Reference (ST s) (ST s) MU MU
-
 -- | A reference that can access a value inside an 'ST' transformed monad
 -- that may not exist.
 type STPartial st s t a b
   = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph (ST st) r )
     => Reference w r MU MU s t a b
 
--- | A reference that must access a value inside an 'ST' transformed monad
--- that may not exist.
-type STPartial' s = Reference (ST s) (MaybeT (ST s)) MU MU
-
 -- | A reference that can access a value inside an 'ST' transformed monad
 -- that may exist in multiple instances.
 type STTraversal st s t a b
   = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (ST st) r )
     => Reference w r MU MU s t a b
-    
--- | A reference that must access a value inside an 'ST' transformed monad
--- that may exist in multiple instances.
-type STTraversal' s = Reference (ST s) (ListT (ST s)) MU MU
-              
 
-           
+         
 -- | States that 'm1' can be represented with 'm2'.
 -- That is because 'm2' contains more infromation than 'm1'.
 --

@@ -11,13 +11,9 @@ module Control.Reference.InternalInterface
        ( Simple, Reference, bireference, reference, referenceWithClose
        , Iso
        , Lens, Partial, Traversal
-       , Lens', Partial', Traversal'
        , IOLens, IOPartial, IOTraversal
-       , IOLens', IOPartial', IOTraversal'
        , StateLens, StatePartial, StateTraversal
-       , StateLens', StatePartial', StateTraversal'
        , WriterLens, WriterPartial, WriterTraversal
-       , WriterLens', WriterPartial', WriterTraversal'
        , MMorph(..)
        , module Control.Reference.Operators
        , module Control.Reference.Predefined

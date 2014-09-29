@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase, TypeOperators #-}
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 
 {-|
 This module can be used to generate references for record fields.
@@ -161,7 +161,7 @@ referenceType refType name args fldTyp
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
   = runStateT (typVarsBounded #~ updateName $ fldTyp) M.empty           
-  where typVarsBounded :: Simple (StateTraversal' (M.Map Name Name) Q) Type Name
+  where typVarsBounded :: Simple (StateTraversal (M.Map Name Name) Q) Type Name
         typVarsBounded = typeVariableNames & filtered (`elem` typArgs)
         updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
                              modify (M.insert name name')
@@ -202,4 +202,5 @@ bindAndRebuild con
               , bindVars
               )
 
-
+instance MMorph (StateT s m) (StateT s m) where
+  morph = id

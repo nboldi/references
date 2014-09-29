@@ -42,37 +42,37 @@ review r a = a ^. turn r
 
 -- | Gets the referenced data in the monad of the lens.
 -- Does not bind the type of the writer monad, so the reference must have its type disambiguated.
-(^#) :: RefMonads MU r => s -> Reference MU r MU MU s t a b -> r a
+(^#) :: Monad r => s -> Getter r s a -> r a
 a ^# l = refGet l return a
 infixl 4 ^#
 
 -- | Pure version of '^#'
-(^.) :: s -> SimpleReadOnlyRef Identity s a -> a
+(^.) :: s -> Getter Identity s a -> a
 a ^. l = runIdentity (a ^# l)
 infixl 4 ^.
 
 -- | Partial version of '^#'
-(^?) :: s -> SimpleReadOnlyRef Maybe s a -> Maybe a
+(^?) :: s -> Getter Maybe s a -> Maybe a
 a ^? l = a ^# l
 infixl 4 ^?
 
 -- | Traversal version of '^#'
-(^*) :: s -> SimpleReadOnlyRef [] s a -> [a]
+(^*) :: s -> Getter [] s a -> [a]
 a ^* l = a ^# l
 infixl 4 ^*
 
 -- | IO version of '^#'
-(^!) :: s -> SimpleReadOnlyRef IO s a -> IO a
+(^!) :: s -> Getter IO s a -> IO a
 a ^! l = a ^# l
 infixl 4 ^!
 
 -- | IO partial version of '^#'
-(^?!) :: s -> SimpleReadOnlyRef (MaybeT IO) s a -> IO (Maybe a)
+(^?!) :: s -> Getter (MaybeT IO) s a -> IO (Maybe a)
 a ^?! l = runMaybeT (a ^# l)
 infixl 4 ^?!
 
 -- | IO traversal version of '^#'
-(^*!) :: s -> SimpleReadOnlyRef (ListT IO) s a -> IO [a]
+(^*!) :: s -> Getter (ListT IO) s a -> IO [a]
 a ^*! l = runListT (a ^# l)
 infixl 4 ^*!
 
@@ -81,37 +81,37 @@ infixl 4 ^*!
 -- | Sets the referenced data to the given pure value in the monad of the reference.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#=) :: Reference w r w' r' s t a b -> b -> s -> w t
+(#=) :: Setter w s t a b -> b -> s -> w t
 l #= v = refSet l v
 infixl 4 #=
 
 -- | Pure version of '#='
-(.=) :: Lens' s t a b -> b -> s -> t
+(.=) :: Setter Identity s t a b -> b -> s -> t
 l .= v = runIdentity . (l #= v)
 infixl 4 .=
 
 -- | Partial version of '#='
-(?=) :: Partial' s t a b -> b -> s -> t
+(?=) :: Setter Identity s t a b -> b -> s -> t
 l ?= v = runIdentity . (l #= v)
 infixl 4 ?=
          
 -- | Traversal version of '#='
-(*=) :: Traversal' s t a b -> b -> s -> t
+(*=) :: Setter Identity s t a b -> b -> s -> t
 l *= v = runIdentity . (l #= v)
 infixl 4 *=
 
 -- | IO version of '#='
-(!=) :: IOLens' s t a b -> b -> s -> IO t
+(!=) :: Setter IO s t a b -> b -> s -> IO t
 l != v = l #= v
 infixl 4 !=
 
 -- | Partial IO version of '#='
-(?!=) :: IOPartial' s t a b -> b -> s -> IO t
+(?!=) :: Setter IO s t a b -> b -> s -> IO t
 l ?!= v = l #= v
 infixl 4 ?!=
 
 -- | Traversal IO version of '#='
-(*!=) :: IOTraversal' s t a b -> b -> s -> IO t
+(*!=) :: Setter IO s t a b -> b -> s -> IO t
 l *!= v = l #= v
 infixl 4 *!=
 
@@ -120,37 +120,37 @@ infixl 4 *!=
 -- | Applies the given monadic function on the referenced data in the monad of the lens.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#~) :: Reference w r w' r' s t a b -> (a -> w b) -> s -> w t
+(#~) :: Setter w s t a b -> (a -> w b) -> s -> w t
 l #~ trf = refUpdate l trf
 infixl 4 #~
 
 -- | Pure version of '#~'
-(.~) :: Lens' s t a b -> (a -> Identity b) -> s -> t
+(.~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
 l .~ trf = runIdentity . (l #~ trf)
 infixl 4 .~
 
 -- | Partial version of '#~'
-(?~) :: Partial' s t a b -> (a -> Identity b) -> s -> t
+(?~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
 l ?~ trf = runIdentity . (l #~ trf)
 infixl 4 ?~
 
 -- | Traversal version of '#~'
-(*~) :: Traversal' s t a b -> (a -> Identity b) -> s -> t
+(*~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
 l *~ trf = runIdentity . (l #~ trf)
 infixl 4 *~
 
 -- | IO version of '#~'
-(!~) :: IOLens' s t a b -> (a -> IO b) -> s -> IO t
+(!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
 l !~ trf = l #~ trf
 infixl 4 !~
 
 -- | Partial IO version of '#~'
-(?!~) :: IOPartial' s t a b -> (a -> IO b) -> s -> IO t
+(?!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
 l ?!~ trf = l #~ trf
 infixl 4 ?!~
 
 -- | Traversal IO version of '#~'
-(*!~) :: IOTraversal' s t a b -> (a -> IO b) -> s -> IO t
+(*!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
 l *!~ trf = l #~ trf
 infixl 4 *!~
 
@@ -159,37 +159,37 @@ infixl 4 *!~
 -- | Applies the given pure function on the referenced data in the monad of the lens.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#-) :: Monad w => Reference w r w' r' s t a b -> (a -> b) -> s -> w t
+(#-) :: Monad w => Setter w s t a b -> (a -> b) -> s -> w t
 l #- trf = l #~ return . trf
 infixl 4 #-
 
 -- | Pure version of '#-'
-(.-) :: Lens' s t a b -> (a -> b) -> s -> t
+(.-) :: Setter Identity s t a b -> (a -> b) -> s -> t
 l .- trf = l .~ return . trf
 infixl 4 .-
 
 -- | Partial version of '#-'
-(?-) :: Partial' s t a b -> (a -> b) -> s -> t
+(?-) :: Setter Identity s t a b -> (a -> b) -> s -> t
 l ?- trf = l ?~ return . trf
 infixl 4 ?-
 
 -- | Traversal version of '#-'
-(*-) :: Traversal' s t a b -> (a -> b) -> s -> t
+(*-) :: Setter Identity s t a b -> (a -> b) -> s -> t
 l *- trf = l *~ return . trf
 infixl 4 *-
 
 -- | IO version of '#-'
-(!-) :: IOLens' s t a b -> (a -> b) -> s -> IO t
+(!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
 l !- trf = l !~ return . trf
 infixl 4 !-
 
 -- | Partial IO version of '#-'
-(?!-) :: IOPartial' s t a b -> (a -> b) -> s -> IO t
+(?!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
 l ?!- trf = l ?!~ return . trf
 infixl 4 ?!-
 
 -- | Traversal IO version of '#-'
-(*!-) :: IOTraversal' s t a b -> (a -> b) -> s -> IO t
+(*!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
 l *!- trf = l *!~ return . trf
 infixl 4 *!-
 
@@ -198,22 +198,22 @@ infixl 4 *!-
 -- | Performs the given monadic action on referenced data while giving back the original data.
 --
 -- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#|) :: Monad w => Reference w r w' r' s s a a -> (a -> w x) -> s -> w s
+(#|) :: Monad w => Setter w s s a a -> (a -> w x) -> s -> w s
 l #| act = l #~ (\v -> act v >> return v)
 infixl 4 #|
 
 -- | IO version of '#|'
-(!|) :: IOLens' s s a a -> (a -> IO c) -> s -> IO s
+(!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
 l !| act = l #| act
 infixl 4 !|
 
 -- | Partial IO version of '#|'
-(?!|) :: IOPartial' s s a a -> (a -> IO c) -> s -> IO s
+(?!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
 l ?!| act = l #| act
 infixl 4 ?!|
 
 -- | Traversal IO version of '#|'
-(*!|) :: IOTraversal' s s a a -> (a -> IO c) -> s -> IO s
+(*!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
 l *!| act = l #| act
 infixl 4 *!|
 

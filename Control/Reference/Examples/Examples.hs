@@ -77,7 +77,7 @@ test11 :: [Int]
 test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
 
 test12 :: Writer [String] (Int,Int)
-test12 = (both :: Simple (WriterTraversal' [String] Identity) (Int,Int) Int) 
+test12 = (both :: Simple (WriterTraversal [String] Identity) (Int,Int) Int) 
   #| (tell . (:[]) . show) $ (0, 1)
 
 data Dept = Dept { _manager :: Employee
@@ -104,7 +104,7 @@ salary = fromLens _salary
 dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "Menelaos" 40000]
 
 test13 :: Writer (Sum Float) Dept
-test13 = let salaryOfEmployees :: Simple (WriterTraversal' (Sum Float) Identity) Dept Float
+test13 = let salaryOfEmployees :: Simple (WriterTraversal (Sum Float) Identity) Dept Float
              salaryOfEmployees = (staff&traverse &+& manager)&salary
           in salaryOfEmployees #| tell . Sum
                $ manager&name .- ("Mr. "++)
@@ -264,3 +264,6 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test27" (Map.fromList [("5",5), ("3",2)]) test27
                  , TestCase $ assertEqual "test28" ["1_", "2"] (catMaybes $ map test28 [0..3])
                  ]
+
+instance MMorph (WriterT s m) (WriterT s m) where
+  morph = id
