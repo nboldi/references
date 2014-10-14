@@ -3,6 +3,7 @@
 {-# LANGUAGE RankNTypes, FlexibleContexts, FlexibleInstances, ScopedTypeVariables #-}
 module Control.Reference.Predefined.Containers where
 
+import Control.Instances.Morph
 import Control.Reference.Representation
 import Control.Reference.Predefined
 import Control.Reference.Operators

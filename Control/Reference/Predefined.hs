@@ -15,6 +15,7 @@ module Control.Reference.Predefined where
 import Control.Reference.Representation
 import Control.Reference.Operators
 
+import Control.Instances.Morph
 import Control.Applicative
 import Control.Monad
 import qualified Data.Traversable as Trav
@@ -161,7 +162,7 @@ atHead = lens (\case [] -> Nothing; x:_ -> Just x)
 -- | References the element at the head of the list
 headElem :: Simple Partial [a] a
 headElem = atHead & just
-    
+
 -- | References the tail of a list
 _tail :: Simple Partial [a] [a]
 _tail = simplePartial (\case [] -> Nothing; x:xs -> Just (xs,(x:)))
@@ -276,10 +277,10 @@ mvar = rawReference
                                             else swapMVar mv newVal >> return ()
                                    return mv)
          (\trf mv -> modifyMVarMasked_ mv trf >> return mv)     
-         (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
+         unusableOp unusableOp unusableOp
 
 -- | Generalized version of 'Control.Concurrent.MVar.modifyMVarMasked_'.
-modifyMVarMasked_ :: (Monad m, MMorphControl IO m) => MVar a -> (a -> m a) -> m ()
+modifyMVarMasked_ :: (Monad m, Morph IO m, MorphControl IO m) => MVar a -> (a -> m a) -> m ()
 modifyMVarMasked_ m io =
   mask_ $ do
     a  <- morph (takeMVar m)
@@ -287,11 +288,11 @@ modifyMVarMasked_ m io =
     morph (putMVar m a')
 
 -- | Generalized version of 'Control.Exception.mask_'.
-mask_ :: (MMorphControl IO m) => m a -> m a
+mask_ :: (MorphControl IO m) => m a -> m a
 mask_ = pullBack . Ex.mask_ . sink
 
 -- | Generalized version of 'Control.Exception.onException'.
-onException :: (MMorphControl IO m) => m a -> m b -> m a
+onException :: (MorphControl IO m) => m a -> m b -> m a
 onException a b = pullBack $ Ex.onException (sink a) (sink b)
     
 chan :: Simple IOLens (Chan a) a

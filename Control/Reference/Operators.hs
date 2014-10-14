@@ -25,6 +25,7 @@ module Control.Reference.Operators where
 
 import Control.Reference.Representation
 
+import Control.Instances.Morph
 import Control.Applicative
 import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
@@ -247,7 +248,7 @@ infixl 6 &
 -- Addition is commutative only if we do not consider the order of the results from a get,
 -- or the order in which monadic actions are performed.
 --
-(&+&) :: (RefMonads w r, RefMonads w' r', MonadPlus r, MonadPlus r', MMorph [] r)
+(&+&) :: (RefMonads w r, RefMonads w' r', MonadPlus r, MonadPlus r', Morph [] r)
          => Reference w r w' r' s s a a -> Reference w r w' r' s s a a
          -> Reference w r w' r' s s a a
 l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a) 

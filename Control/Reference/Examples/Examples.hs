@@ -7,16 +7,12 @@ module Control.Reference.Examples.Examples where
 
 import Control.Reference
 
+import Control.Instances.Morph
 import qualified Control.Lens as Lens
 import Control.Concurrent
-import Control.Concurrent.MVar
-import Control.Monad
 import Control.Monad.Identity
 import Control.Applicative
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.List
 import Control.Monad.Writer
-import Language.Haskell.TH hiding (ListT)
 import Data.Maybe
 import qualified Data.Array as Arr
 import qualified Data.Set as Set
@@ -25,13 +21,6 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Sequence as Seq
 import qualified Data.Tree as T
-import qualified Control.Exception as Ex
-import qualified Control.Exception.Lifted as ExL
-import System.Directory
-import System.FilePath
-import System.IO
-import System.IO.Error
-import Network.Socket
 
 import Test.HUnit
 
@@ -265,5 +254,5 @@ tests = TestList [ TestCase $ assertEqual "test1" Nothing test1
                  , TestCase $ assertEqual "test28" ["1_", "2"] (catMaybes $ map test28 [0..3])
                  ]
 
-instance MMorph (WriterT s m) (WriterT s m) where
+instance Morph (WriterT s m) (WriterT s m) where
   morph = id

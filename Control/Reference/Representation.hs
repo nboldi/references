@@ -9,17 +9,15 @@
 -- This module should not be imported directly.
 module Control.Reference.Representation where
 
-import Data.Maybe (maybeToList)
+import Data.Proxy
+import Control.Instances.Morph
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Base
 import Control.Monad.State (StateT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
-import Control.Monad.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Control.Monad.ST (ST)
-import Control.Monad.Trans.Control (MonadBaseControl)
 
 -- | A reference is an accessor to a part or different view of some data. 
 -- The referenc has a separate getter, setter and updater. In some cases,
@@ -72,7 +70,7 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 --
 -- Usually 's' and 'b' determines 't', 't' and 'a' determines 's'.
 --
--- The reader monad usually have more information (@MMorph 'w' 'r'@).
+-- The reader monad usually have more information (@Morph 'w' 'r'@).
 --
 
 data Reference w r w' r' s t a b
@@ -109,7 +107,7 @@ reference :: ( RefMonads w r )
           -> ((a -> w b) -> s -> w t) -- ^ Updater
           -> Reference w r MU MU s t a b
 reference gets sets updates = Reference (\f s -> gets s >>= f) sets updates 
-                                        (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
+                                        unusableOp unusableOp unusableOp
 
 -- | Creates a reference where all operations are added in their original form.
 --
@@ -141,25 +139,7 @@ referenceWithClose get getClose set setClose update updateClose
   = Reference (\f s -> (get s >>= f) <* getClose s)
               (\b s -> set b s <* setClose s)
               (\trf s -> update trf s <* updateClose s)
-              (\_ _ -> MU) (\_ _ -> MU) (\_ _ -> MU)
-              
--- | Polymorph unit type. Can represent a calculation that cannot calculate anything.
-data MU a = MU
-
-instance Functor MU where
-  fmap _ _ = MU
-instance Applicative MU where
-  pure _ = MU
-  _ <*> _ = MU
-instance Alternative MU where
-  empty = MU
-  MU <|> MU = MU
-instance Monad MU where
-  return _ = MU
-  _ >>= _ = MU
-instance MonadPlus MU where
-  mzero = MU
-  mplus _ _ = MU
+              unusableOp unusableOp unusableOp
                 
 -- | A simple class to enforce that both reader and writer semantics of the reference are 'Monad's
 -- (as well as 'Applicative's and 'Functor's)
@@ -170,6 +150,19 @@ instance ( Functor w, Applicative w, Monad w
          , Functor r, Applicative r, Monad r )
          => RefMonads w r where
 
+type MU = Proxy
+
+instance Alternative MU where
+  empty = Proxy
+  _ <|> _ = Proxy
+  
+instance MonadPlus MU where
+  mzero = Proxy
+  mplus _ _ = Proxy
+
+unusableOp :: a -> b -> MU c
+unusableOp _ _ = Proxy
+         
 -- | A monomorph 'Lens', 'Traversal', 'Partial', etc... 
 -- Setting or updating does not change the type of the base.
 type Simple t s a = t s s a a
@@ -188,8 +181,8 @@ type Iso s t a b
 -- | A partial lens that can be turned to get a total lens.         
 type Prism s t a b
   = forall w r w' r' . (RefMonads w r, RefMonads w' r'
-                       , MonadPlus r, MMorph Maybe r 
-                       , MonadPlus w', MMorph Maybe w') 
+                       , MonadPlus r, Morph Maybe r 
+                       , MonadPlus w', Morph Maybe w') 
       => Reference w r w' r' s t a b
                  
 -- | A 'Reference' that can access a part of data that exists in the context.
@@ -211,7 +204,7 @@ type RefPlus s t a b
 -- the lifted form of 'Nothing').
 type Partial s t a b
   = forall w r . ( Functor w, Applicative w, Monad w
-                 , Functor r, Applicative r, MonadPlus r, MMorph Maybe r )
+                 , Functor r, Applicative r, MonadPlus r, Morph Maybe r )
     => Reference w r MU MU s t a b
     
 -- | A reference that can access data that is available in a number of instances
@@ -221,15 +214,15 @@ type Partial s t a b
 -- updater in the exactly the same number of times that is the number of the values
 -- returned by it's 'getRef' function.
 type Traversal s t a b
-  = forall w r . (RefMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
+  = forall w r . (RefMonads w r, MonadPlus r, Morph Maybe r, Morph [] r )
     => Reference w r MU MU s t a b
 
 -- * References for 'IO'
 
-class ( MMorph IO w, MMorph IO r
-      , MMorphControl IO w, MMorphControl IO r ) => IOMonads w r where
-instance ( MMorph IO w, MMorph IO r
-         , MMorphControl IO w, MMorphControl IO r ) => IOMonads w r where
+class ( Morph IO w, Morph IO r
+      , MorphControl IO w, MorphControl IO r ) => IOMonads w r where
+instance ( Morph IO w, Morph IO r
+         , MorphControl IO w, MorphControl IO r ) => IOMonads w r where
 
 -- | A reference that can access mutable data.
 type IOLens s t a b
@@ -238,139 +231,93 @@ type IOLens s t a b
 
 -- | A reference that can access mutable data that may not exist in the context.
 type IOPartial s t a b
-  = forall w r . (RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r )
+  = forall w r . (RefMonads w r, IOMonads w r, MonadPlus r, Morph Maybe r )
     => Reference w r MU MU s t a b
 
 type IOTraversal s t a b
-  = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, MMorph Maybe r, MMorph [] r )
+  = forall w r . ( RefMonads w r, IOMonads w r, MonadPlus r, Morph Maybe r, Morph [] r )
     => Reference w r MU MU s t a b
 
 -- * References for 'StateT'
 
 -- | A reference that can access a value inside a 'StateT' transformed monad.
 type StateLens st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MMorph (StateT st m) r )
+  = forall w r . ( RefMonads w r, Morph (StateT st m) w, Morph (StateT st m) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may not exist.
 type StatePartial st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph (StateT st m) r )
+  = forall w r . ( RefMonads w r, Morph (StateT st m) w, MonadPlus r, Morph Maybe r, Morph (StateT st m) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside a 'StateT' transformed monad
 -- that may exist in multiple instances.
 type StateTraversal st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (StateT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (StateT st m) r )
+  = forall w r . ( RefMonads w r, Morph (StateT st m) w, MonadPlus r, Morph Maybe r, Morph [] r, Morph (StateT st m) r )
     => Reference w r MU MU s t a b
 
 -- * References for 'WriterT'
 
 -- | A reference that can access a value inside a 'WriterT' transformed monad.
 type WriterLens st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MMorph (WriterT st m) r )
+  = forall w r . ( RefMonads w r, Morph (WriterT st m) w, Morph (WriterT st m) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside a 'WriterT' transformed monad
 -- that may not exist.
 type WriterPartial st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph (WriterT st m) r )
+  = forall w r . ( RefMonads w r, Morph (WriterT st m) w, MonadPlus r, Morph Maybe r, Morph (WriterT st m) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside a 'WriteT' transformed monad
 -- that may exist in multiple instances.
 type WriterTraversal st m s t a b
-  = forall w r . ( RefMonads w r, MMorph (WriterT st m) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (WriterT st m) r )
+  = forall w r . ( RefMonads w r, Morph (WriterT st m) w, MonadPlus r, Morph Maybe r, Morph [] r, Morph (WriterT st m) r )
     => Reference w r MU MU s t a b
 
 -- * References for 'ST'
 
 -- | A reference that can access a value inside an 'ST' transformed monad.
 type STLens st s t a b
-  = forall w r . ( RefMonads w r, MMorph (ST st) w, MMorph (ST st) r )
+  = forall w r . ( RefMonads w r, Morph (ST st) w, Morph (ST st) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside an 'ST' transformed monad
 -- that may not exist.
 type STPartial st s t a b
-  = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph (ST st) r )
+  = forall w r . ( RefMonads w r, Morph (ST st) w, MonadPlus r, Morph Maybe r, Morph (ST st) r )
     => Reference w r MU MU s t a b
 
 -- | A reference that can access a value inside an 'ST' transformed monad
 -- that may exist in multiple instances.
 type STTraversal st s t a b
-  = forall w r . ( RefMonads w r, MMorph (ST st) w, MonadPlus r, MMorph Maybe r, MMorph [] r, MMorph (ST st) r )
+  = forall w r . ( RefMonads w r, Morph (ST st) w, MonadPlus r, Morph Maybe r, Morph [] r, Morph (ST st) r )
     => Reference w r MU MU s t a b
 
-         
--- | States that 'm1' can be represented with 'm2'.
--- That is because 'm2' contains more infromation than 'm1'.
---
--- The 'MMorph' relation defines a natural transformation from 'm1' to 'm2'
--- that keeps the following laws:
---
--- > morph (return x)  =  return x
--- > morph (m >>= f)   =  morph m >>= morph . f
--- 
--- It is a reflexive and transitive relation.
---
-class MMorph (m1 :: * -> *) (m2 :: * -> *) where
-  -- | Lifts the first monad into the second.
-  morph :: m1 a -> m2 a
-
-class MMorph m1 m2 => MMorphControl (m1 :: * -> *) (m2 :: * -> *) where
+class MorphControl (m1 :: * -> *) (m2 :: * -> *) where
   type MSt m1 m2 :: * -> *
   sink :: m2 a -> m1 (MSt m1 m2 a)
   pullBack :: m1 (MSt m1 m2 a) -> m2 a
   
-instance MMorph IO (MaybeT IO) where
-  morph = MaybeT . liftM Just
-  
-instance MMorphControl IO (MaybeT IO) where
+instance MorphControl IO (MaybeT IO) where
   type MSt IO (MaybeT IO) = Maybe
   sink (MaybeT m) = m
   pullBack = MaybeT
   
--- FIXME: conflicts with MMorphControl m MU
--- instance (Monad m, MMorph m m) => MMorphControl m m where
+-- FIXME: conflicts with MorphControl m MU
+-- instance (Monad m, Morph m m) => MorphControl m m where
   -- type MSt m m = Identity
   -- sink m = m >>= return . Identity
   -- pullBack m = m >>= return . runIdentity
   
-instance (Monad IO, MMorph IO IO) => MMorphControl IO IO where
+instance (Monad IO, Morph IO IO) => MorphControl IO IO where
   type MSt IO IO = Identity
   sink m = m >>= return . Identity
   pullBack m = m >>= return . runIdentity
   
-instance (Monad m, MMorph m MU) => MMorphControl m MU where
-  type MSt m MU = MU
-  sink _ = return MU
-  pullBack _ = MU
-  
-instance MMorph IO (ListT IO) where
-  morph = ListT . liftM (:[])
-
-instance MMorph IO IO where
-  morph = id
-
-instance MMorph Identity Maybe where
-  morph = return . runIdentity
-
-instance MMorph Identity [] where
-  morph = return . runIdentity
-  
-instance MMorph Maybe (MaybeT IO) where
-  morph = MaybeT . return  
-  
-instance MMorph Maybe Maybe where
-  morph = id
-  
-instance MMorph Maybe [] where
-  morph = maybeToList
-  
-instance MMorph [] [] where
-  morph = id
-  
-instance MMorph m MU where
-  morph _ = MU
+instance (Monad m, Morph m MU) => MorphControl m MU where
+  type MSt m MU = Proxy
+  sink _ = return Proxy
+  pullBack _ = Proxy
   

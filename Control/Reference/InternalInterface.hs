@@ -14,7 +14,6 @@ module Control.Reference.InternalInterface
        , IOLens, IOPartial, IOTraversal
        , StateLens, StatePartial, StateTraversal
        , WriterLens, WriterPartial, WriterTraversal
-       , MMorph(..)
        , module Control.Reference.Operators
        , module Control.Reference.Predefined
        , module Control.Reference.Predefined.Containers

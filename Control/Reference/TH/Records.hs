@@ -48,15 +48,12 @@ import Data.List
 import Data.Maybe
 import Control.Monad
 import Control.Monad.Writer
-import Control.Monad.Trans
-import Control.Monad.Trans.List
 import Control.Monad.Trans.State
-import Control.Applicative
 
+import Control.Instances.Morph
 import Control.Reference.InternalInterface
 import Control.Reference.Examples.TH
 import Control.Reference.TupleInstances
-import Control.Reference.TH.MonadInstances()
 
 -- | Shows the generated declarations instead of using them.
 debugTH :: Q [Dec] -> Q [Dec]
@@ -202,5 +199,5 @@ bindAndRebuild con
               , bindVars
               )
 
-instance MMorph (StateT s m) (StateT s m) where
+instance Morph (StateT s m) (StateT s m) where
   morph = id

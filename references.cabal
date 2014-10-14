@@ -1,5 +1,5 @@
 name:                references
-version:             0.2.1.2
+version:             0.3.0.0
 synopsis:            Generalization of lenses, folds and traversals to handle monads and addition.
 
 description:         References can read, write or update parts of the data.
@@ -56,6 +56,7 @@ maintainer:          nboldi@elte.hu
 category:            Control
 build-type:          Simple
 cabal-version:       >=1.8
+
 -- For some reason, cabal won't allow me to write this:
 --
 -- source-repository:   head
@@ -65,10 +66,9 @@ cabal-version:       >=1.8
 --   type:       git
 --   location:   git://github.com/lazac/references.git
 --   tag:        0.2.1.2
+
 library
   exposed-modules:     Control.Reference
-                     , Control.Reference.TH.MonadInstances
-                     , Control.Reference.TH.Monad
                      , Control.Reference.TH.Records
                      , Control.Reference.TH.Tuple
                      , Control.Reference.Examples.TH
@@ -79,14 +79,14 @@ library
                      , Control.Reference.Predefined.Containers.Tree
                      , Control.Reference.TupleInstances
                      , Control.Reference.InternalInterface
-  build-depends:       base >=4.6 && <5 
-                     , text ==1.1.*
-                     , array ==0.5.*
-                     , mtl ==2.2.*
-                     , transformers ==0.4.*
-                     , containers ==0.5.*
-                     , either ==4.3.*
-                     , template-haskell >=2.8 && <3
-                     , transformers-base >= 0.4 && <0.5
-                     , monad-control >= 0.3 && <0.4
-                     , lifted-base >= 0.2 && <0.3
+  build-depends:       base                 >= 4.6 && < 5 
+                     , text                 == 1.1.*
+                     , array                == 0.5.*
+                     , mtl                  == 2.2.*
+                     , transformers         == 0.4.*
+                     , containers           == 0.5.*
+                     , either               == 4.3.*
+                     , template-haskell     >= 2.8 && < 3
+                     , instance-control     == 0.1.*
+                     , directory            == 1.2.*
+                     , filepath             == 1.3.*
