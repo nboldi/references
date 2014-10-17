@@ -257,11 +257,11 @@ fileContent
         setFileCont fp (Just cont) = writeFile fp cont
         
         updateFileCont :: FilePath -> Maybe Handle -> Maybe String -> IO ()
-        updateFileCont fp h Nothing = (just ?!| hClose) h >> removeFile fp 
+        updateFileCont fp h Nothing = (just !| hClose) h >> removeFile fp 
         updateFileCont fp h (Just cont) 
           = Ex.bracket (openTempFile (takeDirectory fp) (takeFileName fp))
-                       (\(tfp,th) -> hClose th >> (just ?!| hClose) h >> removeFile tfp)
-                       (\(_,th) -> hPutStr th cont >> (just ?!| hClose) h >> hSeek th AbsoluteSeek 0 
+                       (\(tfp,th) -> hClose th >> (just !| hClose) h >> removeFile tfp)
+                       (\(_,th) -> hPutStr th cont >> (just !| hClose) h >> hSeek th AbsoluteSeek 0 
                                       >> hGetContents th >>= writeFile fp)
                
 -- | Access a value inside an MVar.

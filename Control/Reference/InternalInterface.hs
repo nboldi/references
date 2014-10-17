@@ -8,8 +8,9 @@
 -- For creating a new interface with different generated elements, use this internal interface.
 --
 module Control.Reference.InternalInterface
-       ( Simple, Reference, bireference, reference, referenceWithClose
+       ( Reference, bireference, reference, referenceWithClose
        , Iso
+       , Simple, Getter, Setter
        , Lens, Partial, Traversal
        , IOLens, IOPartial, IOTraversal
        , StateLens, StatePartial, StateTraversal

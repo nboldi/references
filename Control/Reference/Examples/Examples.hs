@@ -8,6 +8,7 @@ module Control.Reference.Examples.Examples where
 import Control.Reference
 
 import Control.Instances.Morph
+import Control.Monad.Trans.Maybe
 import qualified Control.Lens as Lens
 import Control.Concurrent
 import Control.Monad.Identity
@@ -28,29 +29,29 @@ import Test.HUnit
 data A = A deriving (Eq, Show)
 
 test1 :: Maybe Int
-test1 = just ?= 3 $ Nothing
+test1 = just .= 3 $ Nothing
 
 test2 :: Either A Int
-test2 = right ?= 3 $ Right 2
+test2 = right .= 3 $ Right 2
 
 test3 :: Either A Int
-test3 = right ?- (+1) $ Right 2
+test3 = right .- (+1) $ Right 2
 
 test4 :: Either A (Maybe Int)
-test4 = right&just ?- (+1) $ Right (Just 2)
+test4 = right&just .- (+1) $ Right (Just 2)
 
 test5 :: Either A (Maybe [Int])
-test5 = right&just&(element 3) ?- (+1) $ Right (Just [1..10])
+test5 = right&just&(element 3) .- (+1) $ Right (Just [1..10])
 
 test6 :: (Int, Int)
-test6 = both *- (+1) $ (0, 1)
+test6 = both .- (+1) $ (0, 1)
 
 test7 :: (Maybe Int, Maybe Int)
-test7 = both&just *- (+1) $ (Just 0, Nothing)
+test7 = both&just .- (+1) $ (Just 0, Nothing)
 
 -- should not block
 test8 :: IO (MVar Int)
-test8 = newEmptyMVar >>= emptyRef&mvar ?!- (+1)
+test8 = newEmptyMVar >>= emptyRef&mvar !- (+1)
 
 isoList :: Simple Iso [()] Int
 isoList = iso length (`replicate` ())
@@ -60,14 +61,14 @@ test9 = isoList .- (+1)
           $ 3 ^. turn isoList
 
 test10 :: [Int]
-test10 = [1..10] ^* _tail&traverse &+& _tail&_tail&traverse
+test10 = [1..10] ^? _tail&traverse &+& _tail&_tail&traverse
 
 test11 :: [Int]
-test11 = _tail&traverse &+& _tail&_tail&traverse *- (+1) $ replicate 10 1
+test11 = _tail&traverse &+& _tail&_tail&traverse .- (+1) $ replicate 10 1
 
 test12 :: Writer [String] (Int,Int)
 test12 = (both :: Simple (WriterTraversal [String] Identity) (Int,Int) Int) 
-  #| (tell . (:[]) . show) $ (0, 1)
+  !| (tell . (:[]) . show) $ (0, 1)
 
 data Dept = Dept { _manager :: Employee
                  , _staff :: [Employee] 
@@ -95,20 +96,20 @@ dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "
 test13 :: Writer (Sum Float) Dept
 test13 = let salaryOfEmployees :: Simple (WriterTraversal (Sum Float) Identity) Dept Float
              salaryOfEmployees = (staff&traverse &+& manager)&salary
-          in salaryOfEmployees #| tell . Sum
+          in salaryOfEmployees !| tell . Sum
                $ manager&name .- ("Mr. "++)
                $ dept
 
 test14 :: [String]
-test14 = traverse *- (`replicate` 'x') $ [1..10]
+test14 = traverse .- (`replicate` 'x') $ [1..10]
 
 test15 :: (String, Char)
 test15 = let lens_1 = fromLens Lens._1
           in lens_1 .- show $ (2,'a')
 
 test16 :: (Either Int Int, Either Int Int)
-test16 = (_1 &+& _2) & (left &+& right) *- (+1)
-           $ both & anyway *- subtract 1
+test16 = (_1 &+& _2) & (left &+& right) .- (+1)
+           $ both & anyway .- subtract 1
            $ (Left 3, Right 1)
 
 data PWrapped m a = PWrapped { _pwrap :: m a } deriving (Eq, Show)
@@ -133,7 +134,7 @@ data Maybe' a = Just' { _fromJust' :: a }
 $(makeReferences ''Maybe')
 
 test19 :: Maybe' String
-test19 = fromJust' ?- show $ Just' (42 :: Int)
+test19 = fromJust' .- show $ Just' (42 :: Int)
     
 data Tuple a b = Tuple { _fst' :: a, _snd' :: b } deriving (Eq, Show)
          
@@ -145,37 +146,37 @@ test20 = fst' .- length
          $ Tuple "almafa" 42
          
 test21 :: IM.IntMap String 
-test21 = element 2 ?= "two"
-         $ element 3 ?- (++"_")
+test21 = element 2 .= "two"
+         $ element 3 .- (++"_")
          $ at 4 .= Just "4"
          $ IM.fromList [(5, "5"), (2, "2")]
                   
 test22 :: Seq.Seq String 
-test22 = element 1 ?- ("_"++)
-         $ element 3 ?= "_"
+test22 = element 1 .- ("_"++)
+         $ element 3 .= "_"
          $ Seq.fromList ["1","2","3"]
          
 test23 :: Set.Set Int 
-test23 = contains 2 ?= False
-         $ contains 3 ?- not
-         $ contains 4 ?- not
+test23 = contains 2 .= False
+         $ contains 3 .- not
+         $ contains 4 .- not
          $ Set.fromList [1,2,3]
          
 test24 :: IS.IntSet 
-test24 = contains 2 ?= False
-         $ contains 3 ?- not
-         $ contains 4 ?- not
+test24 = contains 2 .= False
+         $ contains 3 .- not
+         $ contains 4 .- not
          $ IS.fromList [1,2,3]       
          
 test25 :: T.Tree Int
-test25 = (\tree -> element [1,0] ?= fromJust (tree ^? element []) $ tree)
-           $ element [1] ?- (+1)
-           $ element [2] ?= 0
+test25 = (\tree -> element [1,0] .= fromJust (tree ^? element []) $ tree)
+           $ element [1] .- (+1)
+           $ element [2] .= 0
            $ T.Node 1 [T.Node 2 [], T.Node 3 [T.Node 4 []]]
            
 test26 :: Arr.Array Int String
-test26 = element 1 ?- (++"!")
-           $ element 2 ?= "World"
+test26 = element 1 .- (++"!")
+           $ element 2 .= "World"
            $ Arr.listArray (1,3) ["Hello","My","World"]
          
 
@@ -186,30 +187,33 @@ test27 = at "2" .= Nothing
          
 test28 :: Int -> Maybe String
 test28 = at 3 .= Nothing
-         $ element 1 ?- (++"_")
+         $ element 1 .- (++"_")
          $ \a -> if a > 0 then Just (show a) else Nothing
          
 -- test29 :: (Maybe Int, Either Int String)
 -- test29 = let r = just &|& right
-          -- in r ?- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
+          -- in r .- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
        
 -- | TODO: test it with timeout       
+example1 :: IO () 
 example1 = 
   do result <- newEmptyMVar
      terminator <- newEmptyMVar
-     forkIO $ (result ^! mvar) >>= print >> (mvar != ()) terminator >> return ()
+     forkIO $ (result ^? mvar) >>= print >> (mvar != ()) terminator >> return ()
      hello <- newMVar (Just "World")
-     forkIO $ ((mvar&just&_tail&_tail) ?!- ('_':) $ hello) >> return ()
-     forkIO $ ((mvar&just&(element 1)) ?!= 'u' $ hello) >> return ()
-     forkIO $ ((mvar&just) ?!- ("Hello" ++) $ hello) >> return ()
+     forkIO $ ((mvar&just&_tail&_tail) !- ('_':) $ hello) >> return ()
+     forkIO $ ((mvar&just&(element 1)) != 'u' $ hello) >> return ()
+     forkIO $ ((mvar&just) !- ("Hello" ++) $ hello) >> return ()
      
-     x <- hello ^?! (mvar & just) 
+     x <- runMaybeT $ hello ^? (mvar & just) 
      mvar != x $ result
-     terminator ^! mvar 
+     terminator ^? mvar 
 
+example2 :: IO Console
 example2 = do consoleLine != "What is your name?" $ Console
               consoleLine !- ("Hello "++) $ Console 
 
+example3 :: IO Console   
 example3 = let logger :: String -> Simple IOLens a a
                logger n = referenceWithClose
                             return (const (morph $ putStrLn $ n ++ ": read done"))
@@ -218,7 +222,7 @@ example3 = let logger :: String -> Simple IOLens a a
                loggedConsole :: Simple IOLens Console String
                loggedConsole = logger "a" & logger "b" & consoleLine
            in do loggedConsole != "Enter 'x'" $ Console
-                 x <- read <$> (Console ^! loggedConsole) :: IO Int
+                 x <- read <$> (Console ^? loggedConsole) :: IO Int
                  loggedConsole != "Enter 'y'" $ Console
                  loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
                                                

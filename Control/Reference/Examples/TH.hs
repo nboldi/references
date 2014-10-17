@@ -33,7 +33,7 @@ typeVariables = fromTraversal typeVariables'
 freeTypeVariables :: Simple Traversal Type Type
 freeTypeVariables = fromTraversal (freeTypeVariables' [])
   where freeTypeVariables' bn f (ForallT vars ctx t) 
-          = ForallT vars ctx <$> freeTypeVariables' (bn ++ (vars ^* traverse&typeVarName)) f t
+          = ForallT vars ctx <$> freeTypeVariables' (bn ++ (vars ^? traverse&typeVarName)) f t
         freeTypeVariables' bn f (AppT t1 t2) = AppT <$> freeTypeVariables' bn f t1 <*> freeTypeVariables' bn f t2
         freeTypeVariables' bn f (SigT t k) = SigT <$> freeTypeVariables' bn f t <*> pure k
         freeTypeVariables' bn f tv@(VarT n) = if n `elem` bn then pure tv else f tv

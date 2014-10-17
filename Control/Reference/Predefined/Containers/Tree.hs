@@ -14,6 +14,6 @@ instance Association (Tree.Tree v) where
             = Just (lab, \lab' -> Tree.Node lab' for)
           accessNode (i:is) (Tree.Node lab for)
             = case for ^? element i of
-                Just subFor -> just&_2 ?- (\upd -> Tree.Node lab . (\v -> element i ?= v $ for) . upd)
+                Just subFor -> just&_2 .- (\upd -> Tree.Node lab . (\v -> element i .= v $ for) . upd)
                                 $ accessNode is subFor
                 Nothing -> Nothing

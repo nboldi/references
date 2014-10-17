@@ -133,21 +133,20 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
                           `AppE` TupE [ VarE (vars !! bindInd)
                                       , LamE [VarP setVar] 
                                              (funApplication & element (bindInd+1)
-                                                 ?= VarE setVar $ rebuild)
+                                                 .= VarE setVar $ rebuild)
                                       ]
                 return $ Match bind (NormalB bindRight) []
                          
          matchWithoutField :: Con -> Q Match
          matchWithoutField con 
            = do (bind, rebuild, _) <- bindAndRebuild con
-                return $ Match bind (NormalB (ConE 'Left `AppE` rebuild)) []
-                                       
+                return $ Match bind (NormalB (ConE 'Left `AppE` rebuild)) []              
            
 referenceType :: Type -> Name -> [TyVarBndr] -> Type -> Q Type
 referenceType refType name args fldTyp 
-  = do let argTypes = args ^* traverse&typeVarName
+  = do let argTypes = args ^? traverse&typeVarName
        (fldTyp',mapping) <- makePoly argTypes fldTyp
-       let args' = traverse&typeVarName *- (\a -> fromMaybe a (mapping ^? element a)) $ args
+       let args' = traverse&typeVarName .- (\a -> fromMaybe a (mapping ^? element a)) $ args
        return $ ForallT (map PlainTV (sort (nub (M.elems mapping ++ argTypes)))) [] 
                         (refType `AppT` addTypeArgs name args 
                                  `AppT` addTypeArgs name args' 
@@ -157,7 +156,7 @@ referenceType refType name args fldTyp
 -- | Creates a new field type with changing the type variables that are bound outside
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
-  = runStateT (typVarsBounded #~ updateName $ fldTyp) M.empty           
+  = runStateT (typVarsBounded !~ updateName $ fldTyp) M.empty           
   where typVarsBounded :: Simple (StateTraversal (M.Map Name Name) Q) Type Name
         typVarsBounded = typeVariableNames & filtered (`elem` typArgs)
         updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
@@ -174,7 +173,7 @@ refName = nameBaseStr .- \case '_':xs -> xs; xs -> '_':xs
 -- * Helper functions 
 
 hasField :: Name -> Con -> Bool
-hasField n = not . null . (^* recFields & traverse & _1 & filtered (==n))
+hasField n = not . null . (^? recFields & traverse & _1 & filtered (==n))
          
 fieldIndex :: Name -> Con -> Maybe Int
 fieldIndex n con = (con ^? recFields) >>= findIndex (\f -> (f ^. _1) == n)

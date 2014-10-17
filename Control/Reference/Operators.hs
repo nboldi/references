@@ -41,182 +41,58 @@ review r a = a ^. turn r
 
 -- * Getters
 
--- | Gets the referenced data in the monad of the lens.
--- Does not bind the type of the writer monad, so the reference must have its type disambiguated.
-(^#) :: Monad r => s -> Getter r s a -> r a
-a ^# l = refGet l return a
-infixl 4 ^#
-
--- | Pure version of '^#'
+-- | Pure getter operator
 (^.) :: s -> Getter Identity s a -> a
-a ^. l = runIdentity (a ^# l)
+a ^. l = runIdentity (a ^? l)
 infixl 4 ^.
 
--- | Partial version of '^#'
-(^?) :: s -> Getter Maybe s a -> Maybe a
-a ^? l = a ^# l
+-- | Generic getter operator
+(^?) :: Monad m => s -> Getter m s a -> m a
+a ^? l = refGet l return a
 infixl 4 ^?
-
--- | Traversal version of '^#'
-(^*) :: s -> Getter [] s a -> [a]
-a ^* l = a ^# l
-infixl 4 ^*
-
--- | IO version of '^#'
-(^!) :: s -> Getter IO s a -> IO a
-a ^! l = a ^# l
-infixl 4 ^!
-
--- | IO partial version of '^#'
-(^?!) :: s -> Getter (MaybeT IO) s a -> IO (Maybe a)
-a ^?! l = runMaybeT (a ^# l)
-infixl 4 ^?!
-
--- | IO traversal version of '^#'
-(^*!) :: s -> Getter (ListT IO) s a -> IO [a]
-a ^*! l = runListT (a ^# l)
-infixl 4 ^*!
 
 -- * Setters
 
--- | Sets the referenced data to the given pure value in the monad of the reference.
---
--- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#=) :: Setter w s t a b -> b -> s -> w t
-l #= v = refSet l v
-infixl 4 #=
-
--- | Pure version of '#='
+-- | Pure setter function
 (.=) :: Setter Identity s t a b -> b -> s -> t
-l .= v = runIdentity . (l #= v)
+l .= v = runIdentity . (l != v)
 infixl 4 .=
 
--- | Partial version of '#='
-(?=) :: Setter Identity s t a b -> b -> s -> t
-l ?= v = runIdentity . (l #= v)
-infixl 4 ?=
-         
--- | Traversal version of '#='
-(*=) :: Setter Identity s t a b -> b -> s -> t
-l *= v = runIdentity . (l #= v)
-infixl 4 *=
-
--- | IO version of '#='
-(!=) :: Setter IO s t a b -> b -> s -> IO t
-l != v = l #= v
+-- | Monadic setter function
+(!=) :: Setter m s t a b -> b -> s -> m t
+l != v = refSet l v
 infixl 4 !=
-
--- | Partial IO version of '#='
-(?!=) :: Setter IO s t a b -> b -> s -> IO t
-l ?!= v = l #= v
-infixl 4 ?!=
-
--- | Traversal IO version of '#='
-(*!=) :: Setter IO s t a b -> b -> s -> IO t
-l *!= v = l #= v
-infixl 4 *!=
 
 -- * Updaters
 
--- | Applies the given monadic function on the referenced data in the monad of the lens.
---
--- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#~) :: Setter w s t a b -> (a -> w b) -> s -> w t
-l #~ trf = refUpdate l trf
-infixl 4 #~
-
--- | Pure version of '#~'
+-- | Monadic updater with a pure result
 (.~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
-l .~ trf = runIdentity . (l #~ trf)
+l .~ trf = runIdentity . (l !~ trf)
 infixl 4 .~
 
--- | Partial version of '#~'
-(?~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
-l ?~ trf = runIdentity . (l #~ trf)
-infixl 4 ?~
-
--- | Traversal version of '#~'
-(*~) :: Setter Identity s t a b -> (a -> Identity b) -> s -> t
-l *~ trf = runIdentity . (l #~ trf)
-infixl 4 *~
-
--- | IO version of '#~'
-(!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
-l !~ trf = l #~ trf
+-- | Monadic updater
+(!~) :: Setter m s t a b -> (a -> m b) -> s -> m t
+l !~ trf = refUpdate l trf
 infixl 4 !~
-
--- | Partial IO version of '#~'
-(?!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
-l ?!~ trf = l #~ trf
-infixl 4 ?!~
-
--- | Traversal IO version of '#~'
-(*!~) :: Setter IO s t a b -> (a -> IO b) -> s -> IO t
-l *!~ trf = l #~ trf
-infixl 4 *!~
 
 -- * Updaters with pure function inside
 
--- | Applies the given pure function on the referenced data in the monad of the lens.
---
--- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#-) :: Monad w => Setter w s t a b -> (a -> b) -> s -> w t
-l #- trf = l #~ return . trf
-infixl 4 #-
-
--- | Pure version of '#-'
+-- | Pure updater with pure function
 (.-) :: Setter Identity s t a b -> (a -> b) -> s -> t
 l .- trf = l .~ return . trf
 infixl 4 .-
 
--- | Partial version of '#-'
-(?-) :: Setter Identity s t a b -> (a -> b) -> s -> t
-l ?- trf = l ?~ return . trf
-infixl 4 ?-
-
--- | Traversal version of '#-'
-(*-) :: Setter Identity s t a b -> (a -> b) -> s -> t
-l *- trf = l *~ return . trf
-infixl 4 *-
-
--- | IO version of '#-'
-(!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
+-- | Monadic update with pure function
+(!-) :: Monad m => Setter m s t a b -> (a -> b) -> s -> m t
 l !- trf = l !~ return . trf
 infixl 4 !-
 
--- | Partial IO version of '#-'
-(?!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
-l ?!- trf = l ?!~ return . trf
-infixl 4 ?!-
-
--- | Traversal IO version of '#-'
-(*!-) :: Setter IO s t a b -> (a -> b) -> s -> IO t
-l *!- trf = l *!~ return . trf
-infixl 4 *!-
-
 -- * Updaters with only side-effects
 
--- | Performs the given monadic action on referenced data while giving back the original data.
---
--- Does not bind the type of the reader monad, so the reference must have its type disambiguated.
-(#|) :: Monad w => Setter w s s a a -> (a -> w x) -> s -> w s
-l #| act = l #~ (\v -> act v >> return v)
-infixl 4 #|
-
--- | IO version of '#|'
-(!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
-l !| act = l #| act
+-- | Perform a given action monadically
+(!|) :: Monad m => Setter m s s a a -> (a -> m c) -> s -> m s
+l !| act = l !~ (\v -> act v >> return v)
 infixl 4 !|
-
--- | Partial IO version of '#|'
-(?!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
-l ?!| act = l #| act
-infixl 4 ?!|
-
--- | Traversal IO version of '#|'
-(*!|) :: Setter IO s s a a -> (a -> IO c) -> s -> IO s
-l *!| act = l #| act
-infixl 4 *!|
 
 -- * Binary operators on references
 
@@ -241,9 +117,9 @@ infixl 6 &
 -- Using this operator may result in accessing the same parts of data multiple times.
 -- For example @ twice = self &+& self @ is a reference that accesses itself twice:
 --
--- > a ^* twice == [a,a]
+-- > a ^? twice == [a,a]
 -- > (twice *= x) a == x
--- > (twice *- f) a == f (f a)
+-- > (twice .- f) a == f (f a)
 --
 -- Addition is commutative only if we do not consider the order of the results from a get,
 -- or the order in which monadic actions are performed.
