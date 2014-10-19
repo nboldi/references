@@ -2,23 +2,14 @@
 {-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses #-}
 {-# LANGUAGE LambdaCase, TypeOperators #-}
 
--- | Common operators for references. References bind the types of the read and write monads of
--- a reference.
 --
--- The naming of the operators follows the given convetions:
+-- | Common operators for using, transforming and combining.
 --
---  * There are four kinds of operator for every type of reference.
--- The operators are either getters (@^_@), setters (@_=@), monadic updaters (@_~@),
--- pure updaters (@_-@) or action performers (@_|@).
--- The @_@ will be replaced with the signs of the monads accessable.
+-- There are four kinds of operator for every type of reference.
+-- The operators are either getters ('^.' and '^?'), setters ('.=' and '!='), 
+-- monadic updaters ('.~' and '!~'), pure updaters ('.-' and '!-') or action performers (@!|@).
 --
--- * There are pure operators for 'Lens' (@.@), partial operators for 'Partial' lenses (@?@),
--- operators for 'Traversal' (@*@), and operators that work inside 'IO' for 'IOLens' (@!@).
---
--- * Different reference types can be combined, the outermost monad is the first character.
--- Example: Partial IO lens (@?!@). But partial lens and traversal combined is simply a traversal.
---
--- * Generic operators (@#@) do not bind the types of the monads, so they must disambiguated manually.
+-- The former operators (with the dot) are pure operators, the later are monadic operators. For example, @(1,2) ^. _1@ results in a pure numeric value, while @Right 4 ^? right@ produces @Just 4@ (or a higher level value representing that).
 --
 
 module Control.Reference.Operators where
@@ -31,11 +22,13 @@ import Control.Monad.Identity
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.List
               
--- | Flips a reference to the other direction
+-- | Flips a reference to the other direction.
+-- The monads of the references can change when a reference is turned.
 turn :: Reference w r w' r' s t a b -> Reference w' r' w r a b s t
 turn (Reference refGet refSet refUpdate refGet' refSet' refUpdate')
   = (Reference refGet' refSet' refUpdate' refGet refSet refUpdate)
   
+-- | Gets the context from the referenced element by turning the reference.
 review :: Reference MU MU MU Identity s s a a -> a -> s
 review r a = a ^. turn r
 
@@ -138,7 +131,6 @@ l1 &+& l2 = Reference (\f a -> refGet l1 f a `mplus` refGet l2 f a)
 infixl 5 &+&
 
 -- | Pack two references in parallel.
-
 (&|&) :: (RefMonads m m') 
       => Reference m m m' m' s t a b -> Reference m m m' m' s' t' a' b' 
            -> Reference m m m' m' (s, s') (t, t') (a, a') (b, b')
