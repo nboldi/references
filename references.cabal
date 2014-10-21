@@ -1,6 +1,6 @@
 name:                references
 version:             0.3.0.0
-synopsis:            Generalization of lenses, folds and traversals to handle monads and addition.
+synopsis:            Selectors for reading and updating data.
 
 description:         References are data accessors that can read, write or update the accessed infromation through their context. They are first-class values, can be passed in functions, transformed, combined. References generalize lenses, folds and traversals for haskell (see: < https://hackage.haskell.org/package/lens>).
 		     .
@@ -56,21 +56,32 @@ license:             BSD3
 license-file:        LICENSE
 author:              Boldizsar Nemeth
 maintainer:          nboldi@elte.hu
--- copyright:           
+copyright:           Boldizsar Nemeth, 2014
 category:            Control
 build-type:          Simple
 cabal-version:       >=1.8
 
--- For some reason, cabal won't allow me to write this:
---
--- source-repository:   head
---   type:       git
---   location:   git://github.com/lazac/references.git
--- source-repository:   this
---   type:       git
---   location:   git://github.com/lazac/references.git
---   tag:        0.2.1.2
+extra-source-files:
+  README.md
+  CHANGELOG.md
+  Control/Reference/Examples/Examples.hs
+  Control/Reference/Examples/Main.hs
 
+test-suite lens-creation
+  type:           exitcode-stdio-1.0
+  main-is:        Control/Reference/Examples/Main.hs
+  build-depends:  base, text, array, mtl, transformers, containers
+                , either, template-haskell, instance-control, directory
+                , filepath, HUnit, lens
+  
+source-repository head
+  type:       git
+  location:   git://github.com/lazac/references.git
+source-repository this
+  type:       git
+  location:   git://github.com/lazac/references.git
+  tag:        0.3
+                     
 library
   exposed-modules:     Control.Reference
                      , Control.Reference.TH.Records
@@ -94,3 +105,5 @@ library
                      , instance-control     == 0.1.*
                      , directory            == 1.2.*
                      , filepath             == 1.3.*
+                     
+                  
