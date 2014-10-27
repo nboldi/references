@@ -12,6 +12,7 @@ import Control.Monad.Trans.Maybe
 import qualified Control.Lens as Lens
 import Control.Concurrent
 import Control.Monad.Identity
+import Control.Monad.Trans.List
 import Control.Applicative
 import Control.Monad.Writer
 import Data.Maybe
@@ -192,37 +193,23 @@ test28 = at 3 .= Nothing
 -- test29 = let r = just &|& right
           -- in r .- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
        
--- | TODO: test it with timeout       
-example1 :: IO () 
+example1 :: IO String
 example1 = 
   do result <- newEmptyMVar
-     terminator <- newEmptyMVar
-     forkIO $ (result ^? mvar) >>= print >> (mvar != ()) terminator >> return ()
+     updates <- replicateM 3 newEmptyMVar
      hello <- newMVar (Just "World")
-     forkIO $ ((mvar&just&_tail&_tail) !- ('_':) $ hello) >> return ()
-     forkIO $ ((mvar&just&(element 1)) != 'u' $ hello) >> return ()
-     forkIO $ ((mvar&just) !- ("Hello" ++) $ hello) >> return ()
-     
-     x <- runMaybeT $ hello ^? (mvar & just) 
+     forkIO $ do mvar&just&_tail&_tail !- ('_':) $ hello
+                 mvar != () $ (updates !! 0)
+                 return ()
+     forkIO $ do mvar&just&(element 1) != 'u' $ hello
+                 mvar != () $ (updates !! 1)
+                 return ()
+     forkIO $ do mvar&just !- ("Hello " ++) $ hello
+                 mvar != () $ (updates !! 2)
+                 return ()
+                 
+     -- wait for all updates to happen
+     runListT $ (updates :: [MVar ()]) ^? traverse&mvar 
+     Just x <- runMaybeT $ hello ^? (mvar & just) 
      mvar != x $ result
-     terminator ^? mvar 
-
-example2 :: IO Console
-example2 = do consoleLine != "What is your name?" $ Console
-              consoleLine !- ("Hello "++) $ Console 
-
-example3 :: IO Console   
-example3 = let logger :: String -> Simple IOLens a a
-               logger n = referenceWithClose
-                            return (const (morph $ putStrLn $ n ++ ": read done"))
-                            (\b _ -> return b) (const (morph $ putStrLn $ n ++ ": write done"))
-                            (\trf a -> trf a) (const (morph $ putStrLn $ n ++ ": update done"))
-               loggedConsole :: Simple IOLens Console String
-               loggedConsole = logger "a" & logger "b" & consoleLine
-           in do loggedConsole != "Enter 'x'" $ Console
-                 x <- read <$> (Console ^? loggedConsole) :: IO Int
-                 loggedConsole != "Enter 'y'" $ Console
-                 loggedConsole !- (("The result is: " ++) . show . (x +) . read) $ Console
-
-instance Morph (WriterT s m) (WriterT s m) where
-  morph = id
+     result ^? mvar

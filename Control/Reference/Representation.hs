@@ -16,6 +16,7 @@ import Control.Monad
 import Control.Monad.State (StateT)
 import Control.Monad.Writer (WriterT)
 import Control.Monad.Identity (Identity(..))
+import Control.Monad.Trans.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Control.Monad.ST (ST)
 
@@ -300,10 +301,15 @@ class MorphControl (m1 :: * -> *) (m2 :: * -> *) where
   sink :: m2 a -> m1 (MSt m1 m2 a)
   pullBack :: m1 (MSt m1 m2 a) -> m2 a
   
-instance MorphControl IO (MaybeT IO) where
-  type MSt IO (MaybeT IO) = Maybe
+instance MorphControl m (MaybeT m) where
+  type MSt m (MaybeT m) = Maybe
   sink (MaybeT m) = m
-  pullBack = MaybeT
+  pullBack = MaybeT 
+  
+instance MorphControl m (ListT m) where
+  type MSt m (ListT m) = []
+  sink (ListT m) = m
+  pullBack = ListT
   
 -- FIXME: conflicts with MorphControl m MU
 -- instance (Monad m, Morph m m) => MorphControl m m where
