@@ -296,34 +296,42 @@ type STTraversal st s t a b
   = forall w r . ( RefMonads w r, Morph (ST st) w, MonadPlus r, Morph Maybe r, Morph [] r, Morph (ST st) r )
     => Reference w r MU MU s t a b
 
+-- | A class for representing calculation in a simpler monad.
+-- 
+-- @pullBack . sink === id@
 class MorphControl (m1 :: * -> *) (m2 :: * -> *) where
-  type MSt m1 m2 :: * -> *
+  data MSt m1 m2 a :: *
   sink :: m2 a -> m1 (MSt m1 m2 a)
   pullBack :: m1 (MSt m1 m2 a) -> m2 a
   
-instance MorphControl m (MaybeT m) where
-  type MSt m (MaybeT m) = Maybe
-  sink (MaybeT m) = m
-  pullBack = MaybeT 
+instance Monad m => MorphControl m (MaybeT m) where
+  newtype MSt m (MaybeT m) a = MaybeMSt { fromMaybeMSt :: Maybe a }
+  sink = liftM MaybeMSt . runMaybeT
+  pullBack = MaybeT . liftM fromMaybeMSt
   
-instance MorphControl m (ListT m) where
-  type MSt m (ListT m) = []
-  sink (ListT m) = m
-  pullBack = ListT
+instance Monad m => MorphControl m (ListT m) where
+  newtype MSt m (ListT m) a = ListMSt { fromListMSt :: [a] }
+  sink = liftM ListMSt . runListT
+  pullBack = ListT . liftM fromListMSt
   
--- FIXME: conflicts with MorphControl m MU
+-- FIXME: conflicts with other instance declarations
 -- instance (Monad m, Morph m m) => MorphControl m m where
-  -- type MSt m m = Identity
-  -- sink m = m >>= return . Identity
-  -- pullBack m = m >>= return . runIdentity
+  -- newtype MSt m m a = ReflMSt { fromReflMSt :: a }
+  -- sink = liftM ReflMSt
+  -- pullBack = liftM fromReflMSt
   
-instance (Monad IO, Morph IO IO) => MorphControl IO IO where
-  type MSt IO IO = Identity
-  sink m = m >>= return . Identity
-  pullBack m = m >>= return . runIdentity
+instance MorphControl IO IO where
+  newtype MSt IO IO a = ReflIOMSt { fromReflIOMSt :: a }
+  sink = liftM ReflIOMSt
+  pullBack = liftM fromReflIOMSt
   
-instance (Monad m, Morph m MU) => MorphControl m MU where
-  type MSt m MU = Proxy
-  sink _ = return Proxy
+instance MorphControl Identity Identity where
+  newtype MSt Identity Identity a = ReflIdMSt { fromReflIdMSt :: a }
+  sink = liftM ReflIdMSt
+  pullBack = liftM fromReflIdMSt
+  
+instance (Monad m) => MorphControl m MU where
+  newtype MSt m MU a = ProxyMSt ()
+  sink _ = return (ProxyMSt ())
   pullBack _ = Proxy
   
