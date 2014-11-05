@@ -8,19 +8,19 @@
 -- For creating a new interface with different generated elements, use this internal interface.
 --
 module Control.Reference.InternalInterface
-       ( Reference, bireference, reference, referenceWithClose
-       , Iso
-       , Simple, Getter, Setter
-       , Lens, Partial, Traversal
-       , IOLens, IOPartial, IOTraversal
-       , StateLens, StatePartial, StateTraversal
-       , WriterLens, WriterPartial, WriterTraversal
+       ( bireference, reference, referenceWithClose
+       , module Control.Reference.Types
        , module Control.Reference.Operators
+       , module Control.Reference.Combinators
        , module Control.Reference.Predefined
+       , module Control.Reference.Generators
        , module Control.Reference.Predefined.Containers
        ) where
 
 import Control.Reference.Representation
+import Control.Reference.Types
 import Control.Reference.Operators
+import Control.Reference.Combinators
 import Control.Reference.Predefined
+import Control.Reference.Generators
 import Control.Reference.Predefined.Containers
