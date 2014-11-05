@@ -1,13 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE RankNTypes, FlexibleContexts, FlexibleInstances, ScopedTypeVariables #-}
+
+-- | References for standard containers
 module Control.Reference.Predefined.Containers where
 
-import Control.Instances.Morph
 import Control.Reference.Representation
-import Control.Reference.Predefined
+import Control.Reference.Types
+import Control.Reference.Generators
 import Control.Reference.Operators
                  
+import Control.Instances.Morph
 import Data.Map as Map
 import qualified Data.Array as Arr
 import qualified Data.Set as Set

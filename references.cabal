@@ -84,16 +84,19 @@ source-repository this
                      
 library
   exposed-modules:     Control.Reference
-                     , Control.Reference.TH.Records
-                     , Control.Reference.TH.Tuple
-                     , Control.Reference.Examples.TH
                      , Control.Reference.Representation
+                     , Control.Reference.Types
+                     , Control.Reference.Combinators
                      , Control.Reference.Operators
+                     , Control.Reference.Generators
                      , Control.Reference.Predefined
                      , Control.Reference.Predefined.Containers
                      , Control.Reference.Predefined.Containers.Tree
                      , Control.Reference.TupleInstances
                      , Control.Reference.InternalInterface
+                     , Control.Reference.TH.Records
+                     , Control.Reference.TH.Tuple
+                     , Control.Reference.Examples.TH
   build-depends:       base                 >= 4.6 && < 5 
                      , text                 == 1.1.*
                      , array                == 0.5.*
