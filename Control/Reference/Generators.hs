@@ -85,3 +85,6 @@ filtered :: (a -> Bool) -> Simple RefPlus a a
 filtered p = reference (\s -> if p s then return s else mzero)
                        (\a s -> if p s then return a else return s)
                        (\f s -> if p s then f s else return s)
+                       
+                       
+                       

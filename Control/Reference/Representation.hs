@@ -79,6 +79,8 @@ data Reference w r w' r' s t a b
               , refSet'     :: t -> a -> w' b
               , refUpdate'  :: (s -> w' t) -> a -> w' b
               }
+              
+type IndexedReference i w r w' r' s t a b = i -> Reference w r w' r' s t a b
 
 -- Creates a two-way reference
 bireference :: (RefMonads w r, RefMonads w' r')

@@ -53,6 +53,10 @@ emptyRef = reference (const mzero) (const return) (const return)
 
 -- * References for simple data structures
 
+-- | An indexed lens for accessing points a function
+atArg :: Eq a => a -> Simple Lens (a -> b) b
+atArg a = lens ($ a) (\b f -> \x -> if a == x then b else f x)
+
 -- | A partial lens to access the value that may not exist
 just :: Prism (Maybe a) (Maybe b) a b
 just = prism Just Just (maybe (Left Nothing) Right) id
@@ -247,3 +251,9 @@ stRef = reference (morph . readSTRef)
                   (\trf ref -> morph (readSTRef ref) >>= trf 
                                  >>= morph . writeSTRef ref >> return ref)     
  
+-- | Filters an indexed reference based on the index
+whereOf :: (RefMonads w r, MonadPlus r) 
+        => (i -> Bool) -> (IndexedReference i w r MU MU s s a a) -> (IndexedReference i w r MU MU s s a a)
+whereOf p iref i | p i       = iref i
+                 | otherwise = emptyRef
+                 
