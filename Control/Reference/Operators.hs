@@ -26,12 +26,12 @@ import Control.Monad.Trans.List
 -- * Getters
 
 -- | Pure getter operator
-(^.) :: s -> Getter Identity s a -> a
+(^.) :: s -> Getter Identity s t a b -> a
 a ^. l = runIdentity (a ^? l)
 infixl 4 ^.
 
 -- | Generic getter operator
-(^?) :: Monad m => s -> Getter m s a -> m a
+(^?) :: Monad m => s -> Getter m s t a b -> m a
 a ^? l = refGet l return a
 infixl 4 ^?
   

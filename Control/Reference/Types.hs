@@ -34,7 +34,7 @@ instance MonadPlus MU where
 type Simple t s a = t s s a a
 
 -- A read-only reference
-type Getter r s a = Reference MU r MU MU s s a a
+type Getter r s t a b = Reference MU r MU MU s t a b
 
 -- A write (and update) -only reference
 type Setter w s t a b = Reference w MU MU MU s t a b
