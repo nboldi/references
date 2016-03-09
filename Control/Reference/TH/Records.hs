@@ -157,7 +157,7 @@ referenceType refType name args fldTyp
 makePoly :: [Name] -> Type -> Q (Type, M.Map Name Name)
 makePoly typArgs fldTyp 
   = runStateT (typVarsBounded !~ updateName $ fldTyp) M.empty           
-  where typVarsBounded :: Simple (StateTraversal (M.Map Name Name) Q) Type Name
+  where typVarsBounded :: Simple Traversal Type Name
         typVarsBounded = typeVariableNames & filtered (`elem` typArgs)
         updateName name = do name' <- lift (newName (nameBase name ++ "'")) 
                              modify (M.insert name name')
