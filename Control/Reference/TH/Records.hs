@@ -66,24 +66,31 @@ makeReferences n
   = do inf <- reify n
        case inf of
          TyConI decl -> case newtypeToData decl of
-           DataD ctx tyConName args cons _ -> 
-              let (complete, partials) 
-                     = partition ((length cons ==) . length)
-                        $ groupBy ((==) `on` fst3)
-                        $ sortBy (compare `on` fst3) $ concat
-                        $ map (\case con@(RecC conName conFields) -> map (\(n,_,t) -> (n, t, con)) conFields
-                                     _ -> []) cons
-              in do comps <- mapM (createLensForField tyConName args . dropThrd3 . head) complete 
-                    parts <- mapM (createPartialLensForField tyConName args cons . dropThrd3 . head) partials 
-                    return $ concat (comps ++ parts)
+           DataD _ tyConName args cons _ -> 
+              createReferences tyConName (args ^? traversal&typeVarName) cons
            _ -> fail "makeReferences: Unsupported data type"
          _ -> fail "makeReferences: Expected the name of a data type or newtype"
-  where fst3 (n,_,_) = n
-        dropThrd3 (n,t,_) = (n,t)
-                              
-createLensForField :: Name -> [TyVarBndr] -> (Name,Type) -> Q [Dec]
-createLensForField typName typArgs (fldName,fldTyp) 
-  = do lTyp <- referenceType (ConT ''Lens) typName typArgs fldTyp  
+           
+createReferences :: Name -> [Name] -> [Con] -> Q [Dec]
+createReferences tyConName args cons
+  = let toGenerate = map getConFlds cons
+        -- only those type vars are mutable that appear in at most one field of the constructor
+        tvars = map (foldl (\a (_,t,_) -> foldl (flip delete) a (t ^? typeVariableNames :: [Name])) (args++args)) toGenerate
+        toGenTVars = zipWith (\tg tvs -> map (\(n,t,c) -> (n,t,tvs)) tg) toGenerate tvars
+        -- those references will be complete that are generated from fields that are present in every constructor
+        (complete, partials) 
+          = partition ((length cons ==) . length) 
+              $ groupBy ((==) `on` fst3) $ sortBy (compare `on` fst3) $ concat toGenTVars
+    in do comps <- mapM (createLensForField tyConName args . head) complete 
+          parts <- mapM (createPartialLensForField tyConName args cons . head) partials 
+          return $ concat (comps ++ parts)
+  where getConFlds con@(RecC conName conFields) = map (\(n,_,t) -> (n, t, con)) conFields
+        getConFlds _                            = []
+        fst3 (n,_,_) = n
+           
+createLensForField :: Name -> [Name] -> (Name,Type,[Name]) -> Q [Dec]
+createLensForField typName typArgs (fldName,fldTyp,mutArgs) 
+  = do lTyp <- referenceType (ConT ''Lens) typName typArgs mutArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
               , ValD (VarP lensName) (NormalB $ lensBody) []
@@ -99,9 +106,9 @@ createLensForField typName typArgs (fldName,fldTyp)
                            `AppE` LamE [VarP setVar, VarP origVar] 
                                        (RecUpdE (VarE origVar) [(fldName,VarE setVar)])
             
-createPartialLensForField :: Name -> [TyVarBndr] -> [Con] -> (Name,Type) -> Q [Dec]
-createPartialLensForField typName typArgs cons (fldName,fldTyp)
-  = do lTyp <- referenceType (ConT ''Partial) typName typArgs fldTyp  
+createPartialLensForField :: Name -> [Name] -> [Con] -> (Name,Type,[Name]) -> Q [Dec]
+createPartialLensForField typName typArgs cons (fldName,fldTyp,mutArgs)
+  = do lTyp <- referenceType (ConT ''Partial) typName typArgs mutArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
               , ValD (VarP lensName) (NormalB $ lensBody) []
@@ -139,13 +146,13 @@ createPartialLensForField typName typArgs cons (fldName,fldTyp)
          matchWithoutField con 
            = do (bind, rebuild, _) <- bindAndRebuild con
                 return $ Match bind (NormalB (ConE 'Left `AppE` rebuild)) []              
-           
-referenceType :: Type -> Name -> [TyVarBndr] -> Type -> Q Type
-referenceType refType name args fldTyp 
-  = do let argTypes = args ^? traversal&typeVarName
-       (fldTyp',mapping) <- makePoly argTypes fldTyp
-       let args' = traversal&typeVarName .- (\a -> fromMaybe a (mapping ^? element a)) $ args
-       return $ ForallT (map PlainTV (sort (nub (M.elems mapping ++ argTypes)))) [] 
+
+-- | Creates the type of the reference being defined
+referenceType :: Type -> Name -> [Name] -> [Name] -> Type -> Q Type
+referenceType refType name args mutArgs fldTyp 
+  = do (fldTyp',mapping) <- makePoly mutArgs fldTyp
+       let args' = traversal .- (\a -> fromMaybe a (mapping ^? element a)) $ args
+       return $ ForallT (map PlainTV (sort (nub (M.elems mapping ++ args)))) [] 
                         (refType `AppT` addTypeArgs name args 
                                  `AppT` addTypeArgs name args' 
                                  `AppT` fldTyp 
@@ -177,9 +184,8 @@ fieldIndex :: Name -> Con -> Maybe Int
 fieldIndex n con = (con ^? recFields) >>= findIndex (\f -> (f ^. _1) == n)
          
 -- | Creates a type from applying binded type variables to a type function
-addTypeArgs :: Name -> [TyVarBndr] -> Type
-addTypeArgs n = foldl AppT (ConT n) 
-                  . map (VarT . (^. typeVarName))
+addTypeArgs :: Name -> [Name] -> Type
+addTypeArgs n = foldl AppT (ConT n) . map VarT
  
 newtypeToData :: Dec -> Dec
 newtypeToData (NewtypeD ctx name tvars con derives) 
