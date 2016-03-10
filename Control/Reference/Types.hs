@@ -192,10 +192,10 @@ instance MorphControl IO IO where
   sink = liftM ReflIOMSt
   pullBack = liftM fromReflIOMSt
     
-instance MorphControl Identity m where
-  newtype MSt Identity m a = IdMSt { fromIdMSt :: m a }
-  sink = Identity . IdMSt
-  pullBack = fromIdMSt . runIdentity
+-- instance MorphControl Identity m where
+  -- newtype MSt Identity m a = IdMSt { fromIdMSt :: m a }
+  -- sink = Identity . IdMSt
+  -- pullBack = fromIdMSt . runIdentity
   
 instance (Monad m) => MorphControl m MU where
   newtype MSt m MU a = ProxyMSt ()

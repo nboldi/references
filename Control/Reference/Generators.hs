@@ -16,10 +16,10 @@ import Control.Monad.Identity
 import Control.Monad.Writer
 
 -- | Generates a traversal for any 'Trav.Traversable' 'Functor'
-traverse :: (Trav.Traversable t) => Traversal (t a) (t b) a b
-traverse = reference (morph . execWriter . Trav.mapM (tell . (:[])))
-                     (Trav.mapM . const . return) 
-                     Trav.mapM
+traversal :: (Trav.Traversable t) => Traversal (t a) (t b) a b
+traversal = reference (morph . execWriter . Trav.mapM (tell . (:[])))
+                      (Trav.mapM . const . return) 
+                      Trav.mapM
              
 -- | Generate a lens from a pair of inverse functions
 iso :: (a -> b) -> (b -> a) -> Simple Iso a b

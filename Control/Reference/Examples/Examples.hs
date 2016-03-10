@@ -66,10 +66,10 @@ test9 = isoList .- (+1)
           $ 3 ^. turn isoList
 
 test10 :: [Int]
-test10 = [1..10] ^? _tail&traverse &+& _tail&_tail&traverse
+test10 = [1..10] ^? _tail&traversal &+& _tail&_tail&traversal
 
 test11 :: [Int]
-test11 = _tail&traverse &+& _tail&_tail&traverse .- (+1) $ replicate 10 1
+test11 = _tail&traversal &+& _tail&_tail&traversal .- (+1) $ replicate 10 1
 
 test12 :: Writer [String] (Int,Int)
 test12 = (both :: Simple (WriterTraversal [String] Identity) (Int,Int) Int) 
@@ -100,13 +100,13 @@ dept = Dept (Employee "Agamemnon" 100000) [Employee "Akhilles" 30000, Employee "
 
 test13 :: Writer (Sum Float) Dept
 test13 = let salaryOfEmployees :: Simple (WriterTraversal (Sum Float) Identity) Dept Float
-             salaryOfEmployees = (staff&traverse &+& manager)&salary
+             salaryOfEmployees = (staff&traversal &+& manager)&salary
           in salaryOfEmployees !| tell . Sum
                $ manager&name .- ("Mr. "++)
                $ dept
 
 test14 :: [String]
-test14 = traverse .- (`replicate` 'x') $ [1..10]
+test14 = traversal .- (`replicate` 'x') $ [1..10]
 
 test15 :: (String, Char)
 test15 = let lens_1 = fromLens Lens._1
@@ -199,6 +199,18 @@ test28 = at 3 .= Nothing
 -- test29 = let r = just &|& right
           -- in r .- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
        
+data SameName = Opt1 { _sameFld :: Int }
+              | Opt2 { _sameFld :: Int }
+              
+makeReferences ''SameName   
+
+sameFld' :: Simple Lens SameName Int
+sameFld' = sameFld
+
+data SameType a = SameType { sameType :: a, sameType2 :: a }
+     
+makeReferences ''SameType
+       
 example1 :: IO String
 example1 = 
   do result <- newEmptyMVar
@@ -215,7 +227,7 @@ example1 =
                  return ()
                  
      -- wait for all updates to happen
-     runListT $ (updates :: [MVar ()]) ^? traverse&mvar 
+     runListT $ (updates :: [MVar ()]) ^? traversal&mvar 
      Just x <- runMaybeT $ hello ^? (mvar & just) 
      mvar != x $ result
      result ^? mvar

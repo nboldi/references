@@ -33,7 +33,7 @@ typeVariables = fromTraversal typeVariables'
 freeTypeVariables :: Simple Traversal Type Type
 freeTypeVariables = fromTraversal (freeTypeVariables' [])
   where freeTypeVariables' bn f (ForallT vars ctx t) 
-          = ForallT vars ctx <$> freeTypeVariables' (bn ++ (vars ^? traverse&typeVarName)) f t
+          = ForallT vars ctx <$> freeTypeVariables' (bn ++ (vars ^? traversal&typeVarName)) f t
         freeTypeVariables' bn f (AppT t1 t2) = AppT <$> freeTypeVariables' bn f t1 <*> freeTypeVariables' bn f t2
         freeTypeVariables' bn f (SigT t k) = SigT <$> freeTypeVariables' bn f t <*> pure k
         freeTypeVariables' bn f tv@(VarT n) = if n `elem` bn then pure tv else f tv
@@ -59,7 +59,7 @@ recFields = partial (\case (RecC name flds) -> Right (flds, \flds' -> RecC name 
 -- | Reference all fields (data members) in a constructor.
 conFields :: Simple Lens Con [(Strict, Type)]
 conFields = lens getFlds setFlds
-  where getFlds (NormalC _ flds) = flds	
+  where getFlds (NormalC _ flds) = flds
         getFlds (RecC _ flds) = map (\(_,a,b) -> (a,b)) flds
         getFlds (InfixC flds1 _ flds2) = [flds1, flds2]
         getFlds (ForallC _ _ c) = getFlds c
@@ -71,12 +71,12 @@ conFields = lens getFlds setFlds
 
 -- | Reference types of fields
 conTypes :: Simple Traversal Con Type
-conTypes = conFields & traverse & _2
+conTypes = conFields & traversal & _2
         
 -- | Reference the name of the constructor
 conName :: Simple Lens Con Name
 conName = lens getName setName
-  where getName (NormalC n _)   = n	
+  where getName (NormalC n _)   = n
         getName (RecC n _)      = n
         getName (InfixC _ n _)  = n
         getName (ForallC _ _ c) = getName c

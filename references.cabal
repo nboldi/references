@@ -98,15 +98,15 @@ library
                      , Control.Reference.TH.Tuple
                      , Control.Reference.Examples.TH
   build-depends:       base                 >= 4.6 && < 5 
-                     , text                 == 1.1.*
-                     , array                == 0.5.*
-                     , mtl                  == 2.2.*
-                     , transformers         == 0.4.*
-                     , containers           == 0.5.*
-                     , either               == 4.3.*
+                     , text                 >= 1.1 && < 2
+                     , array                >= 0.5 && < 1
+                     , mtl                  >= 2.2 && < 3
+                     , transformers         >= 0.4 && < 1
+                     , containers           >= 0.5 && < 1
+                     , either               >= 4.3 && < 5
                      , template-haskell     >= 2.8 && < 3
-                     , instance-control     == 0.1.*
-                     , directory            == 1.2.*
-                     , filepath             == 1.3.*
+                     , instance-control     >= 0.1 && < 1
+                     , directory            >= 1.2 && < 2
+                     , filepath             >= 1.3 && < 2
                      
                   

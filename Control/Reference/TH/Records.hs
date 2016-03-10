@@ -46,6 +46,7 @@ import Language.Haskell.TH hiding (ListT)
 import qualified Data.Map as M
 import Data.List
 import Data.Maybe
+import Data.Function (on)
 import Control.Monad
 import Control.Monad.Writer
 import Control.Monad.Trans.State
@@ -65,20 +66,23 @@ makeReferences n
   = do inf <- reify n
        case inf of
          TyConI decl -> case newtypeToData decl of
-           DataD ctx tyConName args cons _ -> case cons of
-             [con] -> makeLensesForCon tyConName args con 
-             _ -> liftM concat $ mapM (makePartialLensesForCon tyConName args cons) cons
+           DataD ctx tyConName args cons _ -> 
+              let (complete, partials) 
+                     = partition ((length cons ==) . length)
+                        $ groupBy ((==) `on` fst3)
+                        $ sortBy (compare `on` fst3) $ concat
+                        $ map (\case con@(RecC conName conFields) -> map (\(n,_,t) -> (n, t, con)) conFields
+                                     _ -> []) cons
+              in do comps <- mapM (createLensForField tyConName args . dropThrd3 . head) complete 
+                    parts <- mapM (createPartialLensForField tyConName args cons . dropThrd3 . head) partials 
+                    return $ concat (comps ++ parts)
            _ -> fail "makeReferences: Unsupported data type"
          _ -> fail "makeReferences: Expected the name of a data type or newtype"
-                
-
-makeLensesForCon :: Name -> [TyVarBndr] -> Con -> Q [Dec]
-makeLensesForCon tyName tyVars (RecC conName conFields) 
-  = liftM concat $ mapM (\(n, _, t) -> createLensForField tyName tyVars conName n t) conFields
-makeLensesForCon _ _ _ = return []
-             
-createLensForField :: Name -> [TyVarBndr] -> Name -> Name -> Type -> Q [Dec]
-createLensForField typName typArgs conName fldName fldTyp 
+  where fst3 (n,_,_) = n
+        dropThrd3 (n,t,_) = (n,t)
+                              
+createLensForField :: Name -> [TyVarBndr] -> (Name,Type) -> Q [Dec]
+createLensForField typName typArgs (fldName,fldTyp) 
   = do lTyp <- referenceType (ConT ''Lens) typName typArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
@@ -92,17 +96,11 @@ createLensForField typName typArgs conName fldName fldTyp
                 origVar <- newName "s"
                 return $ VarE 'lens 
                            `AppE` VarE fldName 
-                           `AppE` LamE [VarP setVar, AsP origVar (RecP conName [])] 
+                           `AppE` LamE [VarP setVar, VarP origVar] 
                                        (RecUpdE (VarE origVar) [(fldName,VarE setVar)])
-           
-           
-makePartialLensesForCon :: Name -> [TyVarBndr] -> [Con] -> Con -> Q [Dec]
-makePartialLensesForCon tyName tyVars cons (RecC conName conFields) 
-  = liftM concat $ mapM (\(n, _, t) -> createPartialLensForField tyName tyVars conName cons n t) conFields
-makePartialLensesForCon _ _ _ _ = return []
-           
-createPartialLensForField :: Name -> [TyVarBndr] -> Name -> [Con] -> Name -> Type -> Q [Dec]
-createPartialLensForField  typName typArgs conName cons fldName fldTyp 
+            
+createPartialLensForField :: Name -> [TyVarBndr] -> [Con] -> (Name,Type) -> Q [Dec]
+createPartialLensForField typName typArgs cons (fldName,fldTyp)
   = do lTyp <- referenceType (ConT ''Partial) typName typArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
@@ -144,9 +142,9 @@ createPartialLensForField  typName typArgs conName cons fldName fldTyp
            
 referenceType :: Type -> Name -> [TyVarBndr] -> Type -> Q Type
 referenceType refType name args fldTyp 
-  = do let argTypes = args ^? traverse&typeVarName
+  = do let argTypes = args ^? traversal&typeVarName
        (fldTyp',mapping) <- makePoly argTypes fldTyp
-       let args' = traverse&typeVarName .- (\a -> fromMaybe a (mapping ^? element a)) $ args
+       let args' = traversal&typeVarName .- (\a -> fromMaybe a (mapping ^? element a)) $ args
        return $ ForallT (map PlainTV (sort (nub (M.elems mapping ++ argTypes)))) [] 
                         (refType `AppT` addTypeArgs name args 
                                  `AppT` addTypeArgs name args' 
@@ -173,7 +171,7 @@ refName = nameBaseStr .- \case '_':xs -> xs; xs -> '_':xs
 -- * Helper functions 
 
 hasField :: Name -> Con -> Bool
-hasField n = not . null . (^? recFields & traverse & _1 & filtered (==n))
+hasField n c = not $ null (c ^? recFields & traversal & _1 & filtered (==n) :: [Name])
          
 fieldIndex :: Name -> Con -> Maybe Int
 fieldIndex n con = (con ^? recFields) >>= findIndex (\f -> (f ^. _1) == n)
