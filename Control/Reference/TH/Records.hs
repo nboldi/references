@@ -73,23 +73,21 @@ makeReferences n
            
 createReferences :: Name -> [Name] -> [Con] -> Q [Dec]
 createReferences tyConName args cons
-  = let toGenerate = map getConFlds cons
-        -- only those type vars are mutable that appear in at most one field of the constructor
-        tvars = map (foldl (\a (_,t,_) -> foldl (flip delete) a (t ^? typeVariableNames :: [Name])) (args++args)) toGenerate
-        toGenTVars = zipWith (\tg tvs -> map (\(n,t,c) -> (n,t,tvs)) tg) toGenerate tvars
+  = let toGenerate = group $ sortBy (compare `on` fst) $ concat $ map getConFlds cons
+        -- only those type vars are mutable that appear in at most once in all of the constructors
+        mutableVars = foldl (\a (_,t) -> foldl (flip delete) a (t ^? typeVariableNames :: [Name])) (args++args) (map head toGenerate)
         -- those references will be complete that are generated from fields that are present in every constructor
         (complete, partials) 
           = partition ((length cons ==) . length) 
-              $ groupBy ((==) `on` fst3) $ sortBy (compare `on` fst3) $ concat toGenTVars
-    in do comps <- mapM (createLensForField tyConName args . head) complete 
-          parts <- mapM (createPartialLensForField tyConName args cons . head) partials 
+              $  toGenerate
+    in do comps <- mapM (createLensForField tyConName args mutableVars . head) complete 
+          parts <- mapM (createPartialLensForField tyConName args mutableVars cons . head) partials 
           return $ concat (comps ++ parts)
-  where getConFlds con@(RecC conName conFields) = map (\(n,_,t) -> (n, t, con)) conFields
+  where getConFlds con@(RecC conName conFields) = map (\(n,_,t) -> (n, t)) conFields
         getConFlds _                            = []
-        fst3 (n,_,_) = n
            
-createLensForField :: Name -> [Name] -> (Name,Type,[Name]) -> Q [Dec]
-createLensForField typName typArgs (fldName,fldTyp,mutArgs) 
+createLensForField :: Name -> [Name] -> [Name] -> (Name,Type) -> Q [Dec]
+createLensForField typName typArgs mutArgs (fldName,fldTyp) 
   = do lTyp <- referenceType (ConT ''Lens) typName typArgs mutArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp
@@ -106,8 +104,8 @@ createLensForField typName typArgs (fldName,fldTyp,mutArgs)
                            `AppE` LamE [VarP setVar, VarP origVar] 
                                        (RecUpdE (VarE origVar) [(fldName,VarE setVar)])
             
-createPartialLensForField :: Name -> [Name] -> [Con] -> (Name,Type,[Name]) -> Q [Dec]
-createPartialLensForField typName typArgs cons (fldName,fldTyp,mutArgs)
+createPartialLensForField :: Name -> [Name] -> [Name] -> [Con] -> (Name,Type) -> Q [Dec]
+createPartialLensForField typName typArgs mutArgs cons (fldName,fldTyp)
   = do lTyp <- referenceType (ConT ''Partial) typName typArgs mutArgs fldTyp  
        lensBody <- genLensBody
        return [ SigD lensName lTyp

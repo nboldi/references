@@ -199,17 +199,23 @@ test28 = at 3 .= Nothing
 -- test29 = let r = just &|& right
           -- in r .- (\(a,b) -> (b,a)) $ (Just 3, Left 4)
        
-data SameName = Opt1 { _sameFld :: Int }
-              | Opt2 { _sameFld :: Int }
+data SameName a = Opt1 { _sameFld :: a }
+                | Opt2 { _sameFld :: a }
               
 makeReferences ''SameName   
 
-sameFld' :: Simple Lens SameName Int
+sameFld' :: Simple Lens (SameName a) a
 sameFld' = sameFld
 
 data SameType a = SameType { sameType :: a, sameType2 :: a }
      
 makeReferences ''SameType
+
+data HigherEither x y a 
+       = HigherLeft { _higherLeft :: x a }
+       | HigherRight { _higherRight :: y a }
+     
+makeReferences ''HigherEither
        
 example1 :: IO String
 example1 = 
