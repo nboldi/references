@@ -98,6 +98,7 @@ library
                      , Control.Reference.TH.Tuple
                      , Control.Reference.Examples.TH
   build-depends:       base                 >= 4.6 && < 5 
+                     , uniplate             >= 1.6 && < 2
                      , text                 >= 1.1 && < 2
                      , array                >= 0.5 && < 1
                      , mtl                  >= 2.2 && < 3

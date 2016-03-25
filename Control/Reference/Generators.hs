@@ -14,6 +14,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Identity
 import Control.Monad.Writer
+import Data.Generics.Uniplate.Operations
 
 -- | Generates a traversal for any 'Trav.Traversable' 'Functor'
 traversal :: (Trav.Traversable t) => Traversal (t a) (t b) a b
@@ -78,7 +79,19 @@ fromTraversal :: (forall f . Applicative f => (a -> f b) -> s -> f t) -> Travers
 fromTraversal l = reference (morph . execWriter . l (\a -> tell [a] >> return undefined))
                             (\b -> return . (runIdentity . l (\_ -> Identity b)))
                             l
-
+                            
+-- | References all the elements accessed by uniplate
+uniplateRef :: Uniplate a => Simple Traversal a a
+uniplateRef = reference (morph . universe)
+                        (\b -> return . (transform (const b)))
+                        transformM
+                            
+-- | References all the elements accessed by biplate
+biplateRef :: Biplate a b => Simple Traversal a b
+biplateRef = reference (morph . universeBi)
+                       (\b -> return . (transformBi (const b)))
+                       transformBiM
+                            
 -- | Filters the traversed elements with a given predicate. 
 -- Has specific versions for traversals and partial lenses.
 filtered :: (a -> Bool) -> Simple RefPlus a a
