@@ -66,7 +66,7 @@ makeReferences n
   = do inf <- reify n
        case inf of
          TyConI decl -> case newtypeToData decl of
-           DataD _ tyConName args cons _ -> 
+           DataD _ tyConName args _ cons _ -> 
               createReferences tyConName (args ^? traversal&typeVarName) cons
            _ -> fail "makeReferences: Unsupported data type"
          _ -> fail "makeReferences: Expected the name of a data type or newtype"
@@ -186,8 +186,8 @@ addTypeArgs :: Name -> [Name] -> Type
 addTypeArgs n = foldl AppT (ConT n) . map VarT
  
 newtypeToData :: Dec -> Dec
-newtypeToData (NewtypeD ctx name tvars con derives) 
-  = DataD ctx name tvars [con] derives
+newtypeToData (NewtypeD ctx name tvars kind con derives) 
+  = DataD ctx name tvars kind [con] derives
 newtypeToData d = d
 
 bindAndRebuild :: Con -> Q (Pat, Exp, [Name])

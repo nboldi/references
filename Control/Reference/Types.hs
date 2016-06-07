@@ -20,14 +20,6 @@ import Control.Monad.Trans.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
 import Control.Monad.ST (ST)
 import Data.Proxy
-    
-instance Alternative MU where
-  empty = Proxy
-  _ <|> _ = Proxy
-  
-instance MonadPlus MU where
-  mzero = Proxy
-  mplus _ _ = Proxy
          
 -- | A monomorph 'Lens', 'Traversal', 'Partial', etc... 
 -- Setting or updating does not change the type of the base.

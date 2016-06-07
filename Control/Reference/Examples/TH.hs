@@ -98,29 +98,27 @@ definedName :: Simple Partial Dec Name
 definedName
   = partial (\case FunD n c                 -> Right (n, \n' -> FunD n' c)
                    ValD (VarP n) b w        -> Right (n, \n' -> ValD (VarP n') b w) 
-                   DataD c n tv con d       -> Right (n, \n' -> DataD c n' tv con d) 
-                   NewtypeD c n tv con d    -> Right (n, \n' -> NewtypeD c n' tv con d) 
+                   DataD c n tv k con d     -> Right (n, \n' -> DataD c n' tv k con d) 
+                   NewtypeD c n tv k con d  -> Right (n, \n' -> NewtypeD c n' tv k con d) 
                    TySynD n tv t            -> Right (n, \n' -> TySynD n' tv t) 
                    ClassD c n tv fd f       -> Right (n, \n' -> ClassD c n' tv fd f) 
-                   FamilyD fl n tv k        -> Right (n, \n' -> FamilyD fl n' tv k) 
                    other -> Left other)
 
 -- | Accesses the constructors of a data or newtype definition.
 -- After changing the definition becames a newtype if there is only one constructor.
 definedConstructors :: Simple Partial Dec [Con]
 definedConstructors
-  = partial (\case DataD c n tv con d       -> Right (con, \con' -> createConOrNewtype c n tv con' d) 
-                   NewtypeD c n tv con d    -> Right ([con], \con' -> createConOrNewtype c n tv con' d) 
+  = partial (\case DataD c n tv k con d     -> Right (con, \con' -> createConOrNewtype c n tv k con' d) 
+                   NewtypeD c n tv k con d  -> Right ([con], \con' -> createConOrNewtype c n tv k con' d) 
                    other -> Left other)
-  where createConOrNewtype c n tv [con] d = NewtypeD c n tv con d
-        createConOrNewtype c n tv cons d = DataD c n tv cons d
+  where createConOrNewtype c n tv k [con] d = NewtypeD c n tv k con d
+        createConOrNewtype c n tv k cons d = DataD c n tv k cons d
         
 -- | Accesses the type variables of a definition
 definedTypeArgs :: Simple Partial Dec [TyVarBndr]
 definedTypeArgs
-  = partial (\case DataD c n tv con d       -> Right (tv, \tv' -> DataD c n tv' con d) 
-                   NewtypeD c n tv con d    -> Right (tv, \tv' -> NewtypeD c n tv' con d) 
+  = partial (\case DataD c n tv k con d     -> Right (tv, \tv' -> DataD c n tv' k con d) 
+                   NewtypeD c n tv k con d  -> Right (tv, \tv' -> NewtypeD c n tv' k con d) 
                    TySynD n tv t            -> Right (tv, \tv' -> TySynD n tv' t) 
                    ClassD c n tv fd f       -> Right (tv, \tv' -> ClassD c n tv' fd f) 
-                   FamilyD fl n tv k        -> Right (tv, \tv' -> FamilyD fl n tv' k) 
                    other -> Left other)

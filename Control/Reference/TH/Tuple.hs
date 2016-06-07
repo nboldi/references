@@ -59,14 +59,15 @@ genInstance (TupleConf typGen patGen expGen) (n,m)
   = do names <- replicateM m (newName "a")
        name <- newName "b2"
        genBody <- generateBody
-       return $ InstanceD [] (ConT (lensClass n) 
-                                `AppT` typGen names
-                                `AppT` typGen (replace n name names)
-                                `AppT` VarT (names !! n)
-                                `AppT` VarT name
-                             ) 
-                             [ ValD (VarP (lensFun n) ) 
-                                    (NormalB genBody) [] ]
+       return $ InstanceD Nothing [] 
+                          (ConT (lensClass n) 
+                             `AppT` typGen names
+                             `AppT` typGen (replace n name names)
+                             `AppT` VarT (names !! n)
+                             `AppT` VarT name
+                          ) 
+                          [ ValD (VarP (lensFun n) ) 
+                                 (NormalB genBody) [] ]
 
   where generateBody :: Q Exp
         generateBody
