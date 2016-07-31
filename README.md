@@ -40,5 +40,5 @@ New references can be created in several ways:
  * Using lenses from `Control.Lens` package. There are a lot of packages defining lenses, folds and traversals for various data structures, so it is very useful that all of them can simply be converted into a reference.
  * Generating references for newly defined datatypes using the `makeReferences` Template Haskell function.
 
-
+[![Hackage](https://img.shields.io/hackage/v/references.svg?maxAge=2592000)]()
 
