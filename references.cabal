@@ -1,5 +1,5 @@
 name:                references
-version:             0.3.1.1
+version:             0.3.2.0
 synopsis:            Selectors for reading and updating data.
 
 description:         References are data accessors that can read, write or update the accessed infromation through their context. They are first-class values, can be passed in functions, transformed, combined. References generalize lenses, folds and traversals for haskell (see: < https://hackage.haskell.org/package/lens>).
