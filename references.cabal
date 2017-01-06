@@ -1,5 +1,5 @@
 name:                references
-version:             0.3.2.0
+version:             0.3.2.1
 synopsis:            Selectors for reading and updating data.
 
 description:         References are data accessors that can read, write or update the accessed infromation through their context. They are first-class values, can be passed in functions, transformed, combined. References generalize lenses, folds and traversals for haskell (see: < https://hackage.haskell.org/package/lens>).
@@ -70,9 +70,22 @@ extra-source-files:
 test-suite lens-creation
   type:           exitcode-stdio-1.0
   main-is:        Control/Reference/Examples/Main.hs
-  build-depends:  base, text, array, mtl, transformers, containers
-                , either, template-haskell, instance-control, directory
-                , filepath, HUnit, lens
+  build-depends:  base
+                , text
+                , array
+                , mtl
+                , transformers
+                , containers
+                , either
+                , template-haskell
+                , instance-control
+                , directory
+                , filepath
+                , HUnit
+                , lens
+                , uniplate
+                , either
+                , instance-control
   
 source-repository head
   type:       git
