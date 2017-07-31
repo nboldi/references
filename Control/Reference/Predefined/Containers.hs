@@ -37,7 +37,7 @@ instance Association [a] where
           at n (_:xs)     = at (n-1) xs
           
           upd :: Monad w => (a -> w a) -> [a] -> w [a]
-          upd f ls = let (before,rest) = splitAt i ls
+          upd f ls = let (before,rest) = Prelude.splitAt i ls
                       in case rest of [] -> return before
                                       (x:xs) -> f x >>= \fx -> return $ before ++ fx : xs
    
