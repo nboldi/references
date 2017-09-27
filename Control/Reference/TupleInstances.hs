@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -w #-}
+
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances #-}
 
@@ -9,4 +11,3 @@ module Control.Reference.TupleInstances where
 import Control.Reference.TH.Tuple
 
 $(makeTupleRefs hsTupConf 16 16)
-
