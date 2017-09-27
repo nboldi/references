@@ -1,5 +1,5 @@
 name:                references
-version:             0.3.2.1
+version:             0.3.3.0
 synopsis:            Selectors for reading and updating data.
 
 description:         References are data accessors that can read, write or update the accessed infromation through their context. They are first-class values, can be passed in functions, transformed, combined. References generalize lenses, folds and traversals for haskell (see: < https://hackage.haskell.org/package/lens>).
@@ -92,6 +92,7 @@ source-repository head
   location:   git://github.com/lazac/references.git
                      
 library
+  ghc-options: -Wall
   exposed-modules:     Control.Reference
                      , Control.Reference.Representation
                      , Control.Reference.Types

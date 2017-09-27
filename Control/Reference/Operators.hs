@@ -6,7 +6,7 @@
 -- | Common operators for using references.
 --
 -- There are four kinds of operator for every type of reference.
--- The operators are either getters ('^.' and '^?'), setters ('.=' and '!='), 
+-- The operators are either getters ('^.' and '^?'), setters ('.=' and '!='),
 -- monadic updaters ('.~' and '!~'), pure updaters ('.-' and '!-') or action performers ('!|').
 --
 -- The former operators (with the dot) are pure operators, the later are monadic operators. For example, @(1,2) ^. _1@ results in a pure numeric value, while @Right 4 ^? right@ produces @Just 4@ (or a higher level value representing @Just 4@).
@@ -17,11 +17,7 @@ import Control.Reference.Representation
 import Control.Reference.Types
 import Control.Reference.Combinators
 
-import Control.Instances.Morph
-import Control.Applicative
 import Control.Monad.Identity
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.List
 
 -- * Getters
 
@@ -34,7 +30,7 @@ infixl 4 ^.
 (^?) :: Monad m => s -> Getter m s t a b -> m a
 a ^? l = refGet l return a
 infixl 4 ^?
-  
+
 -- | Gets the context from the referenced element by turning the reference.
 review :: Reference MU MU MU Identity s s a a -> a -> s
 review r a = a ^. turn r

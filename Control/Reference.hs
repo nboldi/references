@@ -2,7 +2,6 @@
 
 module Control.Reference
 ( module Control.Reference.InternalInterface
-, module Control.Reference.Predefined.Containers.Tree
 , module Control.Reference.TH.Records
 , module Control.Reference.TupleInstances
 ) where
