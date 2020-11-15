@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE LambdaCase, TypeOperators #-}
+{-# LANGUAGE LambdaCase, TypeOperators, LiberalTypeSynonyms #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 
 {-|

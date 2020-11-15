@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RankNTypes, LiberalTypeSynonyms #-}
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 
 -- | Functions to create references from simple functions 
