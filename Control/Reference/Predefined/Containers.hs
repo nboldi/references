@@ -1,5 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, LiberalTypeSynonyms #-}
 {-# LANGUAGE RankNTypes, FlexibleContexts, FlexibleInstances, ScopedTypeVariables #-}
 
 -- | References for standard containers

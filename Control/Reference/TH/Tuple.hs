@@ -92,7 +92,7 @@ hsTupConf :: TupleConf
 hsTupConf
   = TupleConf (\names -> foldl AppT (TupleT (length names)) . map VarT $ names)
               (TupP . map VarP)
-              (TupE . map VarE)
+              (TupE . map (Just . VarE))
 
 -- | Utility function to replace the N'th element of a list
 replace :: Int -> a -> [a] -> [a]

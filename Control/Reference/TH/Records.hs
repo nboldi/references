@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, LiberalTypeSynonyms #-}
 {-# LANGUAGE LambdaCase, TypeOperators #-}
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 
@@ -132,8 +132,8 @@ createPartialLensForField typName typArgs mutArgs cons (fldName,fldTyp)
                 let Just bindInd = fieldIndex fldName con
                     bindRight
                       = ConE 'Right
-                          `AppE` TupE [ VarE (vars !! bindInd)
-                                      , LamE [VarP setVar]
+                          `AppE` TupE [ Just $ VarE (vars !! bindInd)
+                                      , Just $ LamE [VarP setVar]
                                              (funApplication & element (bindInd+1)
                                                  .= VarE setVar $ rebuild)
                                       ]
